@@ -6,18 +6,6 @@ This project was written entirely by LLM (Claude) with human supervision, and wi
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
-## Features
-
-- **22 tools** — Brush, Pencil, Eraser, Color Picker, Paint Bucket, Gradient, Clone Stamp, Recolor, Text, Line/Curve, Rectangle, Rounded Rectangle, Ellipse, Freeform Shape, Rectangle Select, Ellipse Select, Magic Wand, Move, Move Selection, Pan, Zoom
-- **Multi-layer editing** — Add, delete, duplicate, merge, reorder layers with per-layer opacity, visibility, and blend modes
-- **Selection system** — Rectangle, ellipse, and magic wand selections with union/exclude/xor/intersect combine modes, marching ants display
-- **15 effects** — Gaussian Blur, Motion Blur, Unfocus, Add Noise, Median, Pixelate, Edge Detect, Emboss, Relief, Outline, Glow, Sharpen, Oil Painting, Pencil Sketch, Ink Sketch
-- **8 adjustments** — Invert, Grayscale, Sepia, Auto-Level, Brightness/Contrast, Hue/Saturation/Lightness, Posterize, Levels
-- **Image operations** — Resize, canvas size, crop to selection, flip, rotate 90/180/270, flatten
-- **Full undo/redo** — Every operation is undoable
-- **File I/O** — PNG, JPEG, BMP, GIF, TIFF, WebP, plus a native `.pnx` format that preserves layers
-- **Shape tools** — Outline, fill, or both; shift-constrain for squares/circles/45-degree lines; line/curve tool with spline and bezier editing
-
 ## Dependencies
 
 - **C++20** compiler (GCC 12+ or Clang 15+)
