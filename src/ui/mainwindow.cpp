@@ -573,7 +573,7 @@ void MainWindow::createMenus() {
             srcMenu->addSeparator();
             for (int dst = 0; dst < 4; ++dst) {
                 if (dst == src) continue;
-                srcMenu->addAction(tr("Transfer to %1").arg(channelNames[dst]),
+                srcMenu->addAction(tr("Move to %1").arg(channelNames[dst]),
                     this, [this, src, dst]() { onRemapChannel(src, dst, true); });
             }
         }
@@ -2883,7 +2883,7 @@ void MainWindow::onRemapChannel(int srcChannel, int dstChannel, bool transfer) {
     m_workspace->invalidateAll();
 
     static const QStringList names = {tr("Red"), tr("Green"), tr("Blue"), tr("Alpha")};
-    const QString verb = transfer ? tr("Transfer") : tr("Copy");
+    const QString verb = transfer ? tr("Move") : tr("Copy");
     auto memento = std::make_unique<BitmapHistoryMemento>(
         tr("%1 %2 → %3").arg(verb, names[srcChannel], names[dstChannel]),
         doc, idx, QRegion(surf.bounds()), std::move(original));
