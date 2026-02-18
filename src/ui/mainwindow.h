@@ -20,6 +20,7 @@
 #include <vector>
 
 class QPrinter;
+class QNetworkAccessManager;
 
 namespace paintnux {
 
@@ -118,6 +119,9 @@ private:
     // Layer menu actions
     void onImportFromFile();
     void importFromPath(const QString& filePath);
+    void importFromImage(const QImage& image, const QString& name);
+    void promptAndImportImage(const QImage& image, const QString& name);
+    void handleDroppedUrl(const QUrl& url);
     void onRotateZoom();
 
     // Dirty tracking / title
@@ -179,6 +183,9 @@ private:
     QPoint m_copyOrigin{0, 0};
     QSize m_copySize;
     QPainterPath m_copySelectionPath;
+
+    // Network (lazy-init for browser image drops)
+    QNetworkAccessManager* m_networkManager = nullptr;
 
     // Menu actions that need enable/disable
     QAction* m_undoAction;

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent PrintSupport)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent PrintSupport Network)
 qt_standard_project_setup()
 
 # Core library
@@ -123,7 +123,7 @@ add_library(paintnux_ui STATIC
     src/ui/rulerwidget.cpp
 )
 target_include_directories(paintnux_ui PUBLIC src)
-target_link_libraries(paintnux_ui PUBLIC paintnux_tools paintnux_adjustments paintnux_effects Qt6::Widgets Qt6::PrintSupport)
+target_link_libraries(paintnux_ui PUBLIC paintnux_tools paintnux_adjustments paintnux_effects Qt6::Widgets Qt6::PrintSupport Qt6::Network)
 
 # App executable
 add_executable(paintnux

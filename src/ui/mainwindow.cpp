@@ -53,6 +53,8 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QRadioButton>
 #include <QTimer>
 #include <QTransform>
@@ -1151,41 +1153,130 @@ void MainWindow::restoreSettings() {
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
-    if (event->mimeData()->hasUrls()) {
-        for (const auto& url : event->mimeData()->urls()) {
-            if (url.isLocalFile()) {
-                event->acceptProposedAction();
-                return;
+    const auto* mime = event->mimeData();
+    if (mime->hasImage() || mime->hasUrls())
+        event->acceptProposedAction();
+}
+
+void MainWindow::dropEvent(QDropEvent* event) {
+    const auto* mime = event->mimeData();
+
+    // 1) Direct image data (some browsers provide this)
+    if (mime->hasImage()) {
+        QImage img = qvariant_cast<QImage>(mime->imageData());
+        if (!img.isNull()) {
+            promptAndImportImage(img, tr("Dropped Image"));
+            return;
+        }
+    }
+
+    // 2) URLs — local files or remote http(s)
+    for (const auto& url : mime->urls()) {
+        if (url.isLocalFile()) {
+            QString filePath = url.toLocalFile();
+
+            QMessageBox box(this);
+            box.setWindowTitle(tr("Open Dropped File"));
+            box.setText(tr("How would you like to open \"%1\"?").arg(QFileInfo(filePath).fileName()));
+            auto* openBtn = box.addButton(tr("Open as New Document"), QMessageBox::AcceptRole);
+            auto* layerBtn = box.addButton(tr("Add as New Layer"), QMessageBox::ActionRole);
+            box.addButton(QMessageBox::Cancel);
+            box.exec();
+
+            if (box.clickedButton() == openBtn) {
+                QString error;
+                auto doc = loadDocument(filePath, &error);
+                if (!doc) {
+                    QMessageBox::critical(this, tr("Open Failed"), error);
+                    continue;
+                }
+                setNewDocument(std::move(doc), filePath);
+            } else if (box.clickedButton() == layerBtn) {
+                importFromPath(filePath);
             }
+        } else if (url.scheme() == "http" || url.scheme() == "https") {
+            handleDroppedUrl(url);
         }
     }
 }
 
-void MainWindow::dropEvent(QDropEvent* event) {
-    for (const auto& url : event->mimeData()->urls()) {
-        if (!url.isLocalFile()) continue;
-        QString filePath = url.toLocalFile();
+void MainWindow::handleDroppedUrl(const QUrl& url) {
+    if (!m_networkManager)
+        m_networkManager = new QNetworkAccessManager(this);
 
-        QMessageBox box(this);
-        box.setWindowTitle(tr("Open Dropped File"));
-        box.setText(tr("How would you like to open \"%1\"?").arg(QFileInfo(filePath).fileName()));
-        auto* openBtn = box.addButton(tr("Open as New Document"), QMessageBox::AcceptRole);
-        auto* layerBtn = box.addButton(tr("Add as New Layer"), QMessageBox::ActionRole);
-        box.addButton(QMessageBox::Cancel);
-        box.exec();
+    QNetworkReply* reply = m_networkManager->get(QNetworkRequest(url));
+    setCursor(Qt::WaitCursor);
 
-        if (box.clickedButton() == openBtn) {
-            QString error;
-            auto doc = loadDocument(filePath, &error);
-            if (!doc) {
-                QMessageBox::critical(this, tr("Open Failed"), error);
-                continue;
-            }
-            setNewDocument(std::move(doc), filePath);
-        } else if (box.clickedButton() == layerBtn) {
-            importFromPath(filePath);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, url]() {
+        reply->deleteLater();
+        unsetCursor();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            QMessageBox::warning(this, tr("Download Failed"),
+                tr("Could not download image: %1").arg(reply->errorString()));
+            return;
         }
+
+        QImage img;
+        if (!img.loadFromData(reply->readAll())) {
+            QMessageBox::warning(this, tr("Open Failed"),
+                tr("The downloaded file is not a supported image format."));
+            return;
+        }
+
+        QString name = QFileInfo(url.path()).completeBaseName();
+        if (name.isEmpty()) name = tr("Dropped Image");
+        promptAndImportImage(img, name);
+    });
+}
+
+void MainWindow::promptAndImportImage(const QImage& image, const QString& name) {
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Open Dropped Image"));
+    box.setText(tr("How would you like to open \"%1\"?").arg(name));
+    auto* openBtn = box.addButton(tr("Open as New Document"), QMessageBox::AcceptRole);
+    auto* layerBtn = box.addButton(tr("Add as New Layer"), QMessageBox::ActionRole);
+    box.addButton(QMessageBox::Cancel);
+    box.exec();
+
+    if (box.clickedButton() == openBtn) {
+        QImage img = image.format() == QImage::Format_ARGB32
+            ? image : image.convertToFormat(QImage::Format_ARGB32);
+        auto doc = std::make_unique<Document>(img.width(), img.height());
+        auto layer = std::make_unique<BitmapLayer>(Surface(std::move(img)));
+        layer->setName(name);
+        doc->addLayer(std::move(layer));
+        setNewDocument(std::move(doc), QString());
+    } else if (box.clickedButton() == layerBtn) {
+        importFromImage(image, name);
     }
+}
+
+void MainWindow::importFromImage(const QImage& image, const QString& name) {
+    auto* doc = m_workspace->document();
+    if (!doc) return;
+
+    QImage img = image;
+    if (img.format() != QImage::Format_ARGB32)
+        img = img.convertToFormat(QImage::Format_ARGB32);
+
+    Surface padded(doc->width(), doc->height());
+    padded.copySurface(Surface(std::move(img)));
+
+    int oldActive = m_workspace->activeLayerIndex();
+    auto newLayer = std::make_unique<BitmapLayer>(std::move(padded));
+    newLayer->setName(name);
+
+    int insertIdx = oldActive + 1;
+    doc->insertLayer(insertIdx, std::move(newLayer));
+    m_workspace->setActiveLayerIndex(insertIdx);
+
+    SetActiveIndexFn setActiveFn = [this](int idx) { m_workspace->setActiveLayerIndex(idx); };
+    auto memento = std::make_unique<AddLayerMemento>(
+        tr("Import Layer"), doc, insertIdx, setActiveFn, oldActive);
+    m_workspace->historyStack()->pushNewMemento(std::move(memento));
+
+    m_workspace->invalidateAll();
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
