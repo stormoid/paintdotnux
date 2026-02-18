@@ -36,6 +36,8 @@ protected:
     void closeEvent(QCloseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* obj, QEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 
 private:
     void createMenus();
@@ -115,6 +117,7 @@ private:
 
     // Layer menu actions
     void onImportFromFile();
+    void importFromPath(const QString& filePath);
     void onRotateZoom();
 
     // Dirty tracking / title
@@ -174,6 +177,7 @@ private:
 
     // Clipboard: saved selection shape and origin from copy
     QPoint m_copyOrigin{0, 0};
+    QSize m_copySize;
     QPainterPath m_copySelectionPath;
 
     // Menu actions that need enable/disable

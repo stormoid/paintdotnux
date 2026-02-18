@@ -50,6 +50,8 @@
 #include <QComboBox>
 #include <QGroupBox>
 #include <QLabel>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QMimeData>
 #include <QRadioButton>
 #include <QTimer>
@@ -202,6 +204,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_workspace(new DocumentWorkspace(this)) {
     setWindowTitle("Paint.nux");
     resize(1100, 768);
+    setAcceptDrops(true);
     setStyleSheet("QMainWindow::separator { width: 8px; height: 8px; }");
 
     createTools();
@@ -1147,6 +1150,44 @@ void MainWindow::restoreSettings() {
     }
 }
 
+void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
+    if (event->mimeData()->hasUrls()) {
+        for (const auto& url : event->mimeData()->urls()) {
+            if (url.isLocalFile()) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent* event) {
+    for (const auto& url : event->mimeData()->urls()) {
+        if (!url.isLocalFile()) continue;
+        QString filePath = url.toLocalFile();
+
+        QMessageBox box(this);
+        box.setWindowTitle(tr("Open Dropped File"));
+        box.setText(tr("How would you like to open \"%1\"?").arg(QFileInfo(filePath).fileName()));
+        auto* openBtn = box.addButton(tr("Open as New Document"), QMessageBox::AcceptRole);
+        auto* layerBtn = box.addButton(tr("Add as New Layer"), QMessageBox::ActionRole);
+        box.addButton(QMessageBox::Cancel);
+        box.exec();
+
+        if (box.clickedButton() == openBtn) {
+            QString error;
+            auto doc = loadDocument(filePath, &error);
+            if (!doc) {
+                QMessageBox::critical(this, tr("Open Failed"), error);
+                continue;
+            }
+            setNewDocument(std::move(doc), filePath);
+        } else if (box.clickedButton() == layerBtn) {
+            importFromPath(filePath);
+        }
+    }
+}
+
 void MainWindow::keyPressEvent(QKeyEvent* event) {
     // Only handle bare letter keys (no Ctrl/Alt/Meta modifiers)
     if (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) {
@@ -1639,8 +1680,9 @@ void MainWindow::onCopy() {
     QRect bounds = sel->region().boundingRect().intersected(src.bounds());
     if (bounds.isEmpty()) return;
 
-    // Remember the origin and selection shape so paste restores them
+    // Remember the origin, size and selection shape so paste restores them
     m_copyOrigin = bounds.topLeft();
+    m_copySize = bounds.size();
     m_copySelectionPath = sel->path();
 
     // Create a QImage with the selected pixels (transparent elsewhere)
@@ -1903,8 +1945,7 @@ void MainWindow::onPaste() {
     auto overlay = std::make_unique<Surface>(std::move(img));
 
     // If clipboard image doesn't match our saved copy size, it's from an external source
-    QRect savedBounds = m_copySelectionPath.boundingRect().toAlignedRect();
-    if (overlay->width() != savedBounds.width() || overlay->height() != savedBounds.height()) {
+    if (overlay->width() != m_copySize.width() || overlay->height() != m_copySize.height()) {
         m_copyOrigin = QPoint(0, 0);
         m_copySelectionPath = QPainterPath();
     }
@@ -1967,13 +2008,16 @@ void MainWindow::updateImageMenuState() {
 // --- Layer menu actions ---
 
 void MainWindow::onImportFromFile() {
-    auto* doc = m_workspace->document();
-    if (!doc) return;
-
     QString filePath = QFileDialog::getOpenFileName(this, tr("Import From File"),
                                                      QString(), openFileFilter(),
                                                      nullptr, QFileDialog::DontUseNativeDialog);
     if (filePath.isEmpty()) return;
+    importFromPath(filePath);
+}
+
+void MainWindow::importFromPath(const QString& filePath) {
+    auto* doc = m_workspace->document();
+    if (!doc) return;
 
     QString error;
     auto importedDoc = loadDocument(filePath, &error);
@@ -1983,7 +2027,7 @@ void MainWindow::onImportFromFile() {
     }
 
     int oldActive = m_workspace->activeLayerIndex();
-    QString baseName = QFileInfo(filePath).fileName();
+    QString baseName = QFileInfo(filePath).completeBaseName();
 
     for (int i = 0; i < importedDoc->layerCount(); ++i) {
         auto* srcLayer = dynamic_cast<BitmapLayer*>(importedDoc->layerAt(i));
@@ -1994,7 +2038,10 @@ void MainWindow::onImportFromFile() {
         padded.copySurface(srcLayer->surface());
 
         auto newLayer = std::make_unique<BitmapLayer>(std::move(padded));
-        newLayer->setName(tr("%1 - %2").arg(baseName, srcLayer->name()));
+        if (importedDoc->layerCount() == 1)
+            newLayer->setName(baseName);
+        else
+            newLayer->setName(tr("%1 - %2").arg(baseName, srcLayer->name()));
 
         int insertIdx = m_workspace->activeLayerIndex() + 1;
         doc->insertLayer(insertIdx, std::move(newLayer));
