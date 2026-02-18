@@ -538,7 +538,7 @@ void MainWindow::createMenus() {
                           this, &MainWindow::onLevels);
 
     // --- Effects menu ---
-    auto* effectsMenu = menuBar()->addMenu(tr("E&ffects"));
+    auto* effectsMenu = menuBar()->addMenu(tr("Effe&cts"));
 
     auto* artisticMenu = effectsMenu->addMenu(tr("&Artistic"));
     artisticMenu->addAction(tr("&Ink Sketch..."), this, &MainWindow::onInkSketch);
