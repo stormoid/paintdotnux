@@ -522,6 +522,8 @@ void MainWindow::createMenus() {
     layersMenu->addAction(tr("&Import From File..."), this, &MainWindow::onImportFromFile);
     layersMenu->addSeparator();
     layersMenu->addAction(tr("&Rotate / Zoom..."), this, &MainWindow::onRotateZoom);
+    layersMenu->addAction(tr("Flip Layer &Horizontal"), this, &MainWindow::onLayerFlipHorizontal);
+    layersMenu->addAction(tr("Flip Layer &Vertical"), this, &MainWindow::onLayerFlipVertical);
     layersMenu->addSeparator();
     layersMenu->addAction(tr("Layer &Properties..."))->setEnabled(false);
 
@@ -2565,6 +2567,40 @@ void MainWindow::onRotateZoom() {
 
     auto memento = std::make_unique<BitmapHistoryMemento>(
         tr("Rotate / Zoom"), doc, idx, QRegion(layer->surface().bounds()), std::move(original));
+    m_workspace->historyStack()->pushNewMemento(std::move(memento));
+}
+
+void MainWindow::onLayerFlipHorizontal() {
+    auto* doc = m_workspace->document();
+    if (!doc) return;
+    int idx = m_workspace->activeLayerIndex();
+    auto* layer = dynamic_cast<BitmapLayer*>(doc->layerAt(idx));
+    if (!layer) return;
+
+    Surface original = layer->surface().clone();
+    QImage flipped = layer->surface().qimage().mirrored(true, false);
+    layer->surface().copySurface(Surface(flipped));
+    m_workspace->invalidateAll();
+
+    auto memento = std::make_unique<BitmapHistoryMemento>(
+        tr("Flip Layer Horizontal"), doc, idx, QRegion(layer->surface().bounds()), std::move(original));
+    m_workspace->historyStack()->pushNewMemento(std::move(memento));
+}
+
+void MainWindow::onLayerFlipVertical() {
+    auto* doc = m_workspace->document();
+    if (!doc) return;
+    int idx = m_workspace->activeLayerIndex();
+    auto* layer = dynamic_cast<BitmapLayer*>(doc->layerAt(idx));
+    if (!layer) return;
+
+    Surface original = layer->surface().clone();
+    QImage flipped = layer->surface().qimage().mirrored(false, true);
+    layer->surface().copySurface(Surface(flipped));
+    m_workspace->invalidateAll();
+
+    auto memento = std::make_unique<BitmapHistoryMemento>(
+        tr("Flip Layer Vertical"), doc, idx, QRegion(layer->surface().bounds()), std::move(original));
     m_workspace->historyStack()->pushNewMemento(std::move(memento));
 }
 

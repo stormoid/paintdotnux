@@ -125,6 +125,8 @@ private:
     void promptAndImportImage(const QImage& image, const QString& name);
     void handleDroppedUrl(const QUrl& url);
     void onRotateZoom();
+    void onLayerFlipHorizontal();
+    void onLayerFlipVertical();
 
     // Dirty tracking / title
     void updateWindowTitle();
