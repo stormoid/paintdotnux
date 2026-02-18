@@ -126,10 +126,37 @@ target_include_directories(paintnux_ui PUBLIC src)
 target_link_libraries(paintnux_ui PUBLIC paintnux_tools paintnux_adjustments paintnux_effects Qt6::Widgets Qt6::PrintSupport Qt6::Network)
 
 # App executable
+qt_add_resources(APP_RESOURCES resources/resources.qrc)
 add_executable(paintnux
     src/app/main.cpp
+    ${APP_RESOURCES}
 )
 target_link_libraries(paintnux PRIVATE paintnux_ui)
+
+# Install rules
+include(GNUInstallDirs)
+install(TARGETS paintnux RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES resources/paintnux.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES resources/paintnux.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+
+# CPack packaging (deb, rpm)
+set(CPACK_PACKAGE_NAME "paintdotnux")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A lightweight raster image editor inspired by Paint.NET")
+set(CPACK_PACKAGE_CONTACT "stormoid")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/stormoid/paintdotnux")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+
+# DEB
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6widgets6 (>= 6.2), libqt6svg6 (>= 6.2)")
+set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+
+# RPM
+set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase >= 6.2, qt6-qtsvg >= 6.2")
+set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
+set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+
+include(CPack)
 
 # Tests (optional, requires GoogleTest)
 option(BUILD_TESTING "Build test executables" OFF)
@@ -141,6 +168,7 @@ if(BUILD_TESTING)
         GIT_TAG v1.14.0
     )
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 
     enable_testing()

@@ -1,4 +1,7 @@
 build/
+build-appimage/
 .cache/
 compile_commands.json
 CMakeUserPresets.json
+appimage/tools/
+*.AppImage
