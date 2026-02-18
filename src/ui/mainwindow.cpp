@@ -1663,7 +1663,39 @@ void MainWindow::onFileOpen() {
     setNewDocument(std::move(doc), filePath);
 }
 
+void MainWindow::commitFloatingOverlayForSave() {
+    if (!m_workspace->overlaySurface()) return;
+
+    auto* doc = m_workspace->document();
+    if (!doc) return;
+
+    auto* layer = dynamic_cast<BitmapLayer*>(
+        doc->layerAt(m_workspace->activeLayerIndex()));
+    if (!layer) {
+        m_workspace->clearOverlay();
+        return;
+    }
+
+    // Save undo state, commit overlay pixels, push memento
+    QPoint offset = m_workspace->overlayOffset();
+    const Surface* ovl = m_workspace->overlaySurface();
+    QRect overlayBounds(offset, QSize(ovl->width(), ovl->height()));
+    QRegion region(overlayBounds.intersected(layer->surface().bounds()));
+
+    auto memento = std::make_unique<BitmapHistoryMemento>(
+        tr("Commit Paste"), doc, m_workspace->activeLayerIndex(), region);
+    m_workspace->commitOverlay();
+    m_workspace->historyStack()->pushNewMemento(std::move(memento));
+
+    // Sync MoveTool state — overlay is gone now
+    auto* moveTool = dynamic_cast<MoveTool*>(m_workspace->activeTool());
+    if (moveTool)
+        moveTool->adoptOverlay();
+}
+
 void MainWindow::onFileSave() {
+    commitFloatingOverlayForSave();
+
     if (m_currentFilePath.isEmpty()) {
         onFileSaveAs();
         return;
@@ -1679,6 +1711,8 @@ void MainWindow::onFileSave() {
 }
 
 void MainWindow::onFileSaveAs() {
+    commitFloatingOverlayForSave();
+
     QFileDialog dlg(this, tr("Save As"), m_currentFilePath, saveFileFilter());
     dlg.setAcceptMode(QFileDialog::AcceptSave);
     dlg.setOption(QFileDialog::DontUseNativeDialog);
@@ -1707,6 +1741,8 @@ void MainWindow::onFileSaveAs() {
 }
 
 void MainWindow::onFileExport() {
+    commitFloatingOverlayForSave();
+
     auto* doc = m_workspace->document();
     if (!doc) return;
 

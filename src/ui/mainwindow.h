@@ -59,6 +59,7 @@ private:
     void onFileSave();
     void onFileSaveAs();
     void onFileExport();
+    void commitFloatingOverlayForSave();
     void onFileClose();
     void onUndo();
     void onRedo();
