@@ -60,9 +60,14 @@ void BrushToolBase::drawDot(Surface& surf, QPointF pos, ColorBgra color, int rad
                         }
                     } else if (edge > 0.0f) {
                         if (overwrite) {
-                            ColorBgra c = color;
-                            c.a = static_cast<uint8_t>(color.a * edge);
-                            row[x] = c;
+                            // Lerp destination toward overwrite color by coverage
+                            uint8_t cov = static_cast<uint8_t>(255.0f * edge);
+                            uint8_t icov = 255 - cov;
+                            ColorBgra dst = row[x];
+                            row[x].b = static_cast<uint8_t>((color.b * cov + dst.b * icov) / 255);
+                            row[x].g = static_cast<uint8_t>((color.g * cov + dst.g * icov) / 255);
+                            row[x].r = static_cast<uint8_t>((color.r * cov + dst.r * icov) / 255);
+                            row[x].a = static_cast<uint8_t>((color.a * cov + dst.a * icov) / 255);
                         } else {
                             uint8_t srcA = static_cast<uint8_t>(color.a * edge);
                             if (srcA > 0) {
