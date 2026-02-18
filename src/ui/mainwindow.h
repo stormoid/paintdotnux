@@ -120,6 +120,7 @@ private:
     void onImportFromFile();
     void importFromPath(const QString& filePath);
     void importFromImage(const QImage& image, const QString& name);
+    void importFromImageExpand(const QImage& image, const QString& name);
     void promptAndImportImage(const QImage& image, const QString& name);
     void handleDroppedUrl(const QUrl& url);
     void onRotateZoom();

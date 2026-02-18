@@ -1175,23 +1175,51 @@ void MainWindow::dropEvent(QDropEvent* event) {
         if (url.isLocalFile()) {
             QString filePath = url.toLocalFile();
 
-            QMessageBox box(this);
-            box.setWindowTitle(tr("Open Dropped File"));
-            box.setText(tr("How would you like to open \"%1\"?").arg(QFileInfo(filePath).fileName()));
-            auto* openBtn = box.addButton(tr("Open as New Document"), QMessageBox::AcceptRole);
-            auto* layerBtn = box.addButton(tr("Add as New Layer"), QMessageBox::ActionRole);
-            box.addButton(QMessageBox::Cancel);
-            box.exec();
+            // Peek at the image size to decide whether to offer expand
+            QString error;
+            auto peekDoc = loadDocument(filePath, &error);
+            if (!peekDoc) {
+                QMessageBox::critical(this, tr("Open Failed"), error);
+                continue;
+            }
 
-            if (box.clickedButton() == openBtn) {
-                QString error;
-                auto doc = loadDocument(filePath, &error);
-                if (!doc) {
-                    QMessageBox::critical(this, tr("Open Failed"), error);
-                    continue;
-                }
-                setNewDocument(std::move(doc), filePath);
-            } else if (box.clickedButton() == layerBtn) {
+            auto* doc = m_workspace->document();
+            bool needsExpand = doc && (peekDoc->width() > doc->width() || peekDoc->height() > doc->height());
+
+            QDialog dlg(this);
+            dlg.setWindowTitle(tr("Open Dropped File"));
+            auto* layout = new QVBoxLayout(&dlg);
+            layout->addWidget(new QLabel(tr("How would you like to open \"%1\"?").arg(QFileInfo(filePath).fileName())));
+            auto* btnLayout = new QHBoxLayout;
+            auto* openBtn = new QPushButton(tr("Open as New Document"));
+            auto* layerBtn = new QPushButton(tr("Add as New Layer"));
+            QPushButton* expandBtn = nullptr;
+            auto* cancelBtn = new QPushButton(tr("Cancel"));
+            btnLayout->addWidget(openBtn);
+            btnLayout->addWidget(layerBtn);
+            if (needsExpand) {
+                expandBtn = new QPushButton(tr("Add as Layer && Expand Canvas"));
+                btnLayout->addWidget(expandBtn);
+                connect(expandBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+            }
+            btnLayout->addWidget(cancelBtn);
+            layout->addLayout(btnLayout);
+            QPushButton* clicked = nullptr;
+            connect(openBtn, &QPushButton::clicked, &dlg, [&]() { clicked = openBtn; dlg.accept(); });
+            connect(layerBtn, &QPushButton::clicked, &dlg, [&]() { clicked = layerBtn; dlg.accept(); });
+            if (expandBtn)
+                connect(expandBtn, &QPushButton::clicked, &dlg, [&]() { clicked = expandBtn; dlg.accept(); });
+            connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+            if (dlg.exec() == QDialog::Rejected) continue;
+
+            if (clicked == openBtn) {
+                setNewDocument(std::move(peekDoc), filePath);
+            } else if (expandBtn && clicked == expandBtn) {
+                // Flatten the loaded doc to get an image, then expand+import
+                Surface flat = peekDoc->flatten();
+                QString name = QFileInfo(filePath).completeBaseName();
+                importFromImageExpand(flat.qimage(), name);
+            } else if (clicked == layerBtn) {
                 importFromPath(filePath);
             }
         } else if (url.scheme() == "http" || url.scheme() == "https") {
@@ -1231,25 +1259,104 @@ void MainWindow::handleDroppedUrl(const QUrl& url) {
 }
 
 void MainWindow::promptAndImportImage(const QImage& image, const QString& name) {
-    QMessageBox box(this);
-    box.setWindowTitle(tr("Open Dropped Image"));
-    box.setText(tr("How would you like to open \"%1\"?").arg(name));
-    auto* openBtn = box.addButton(tr("Open as New Document"), QMessageBox::AcceptRole);
-    auto* layerBtn = box.addButton(tr("Add as New Layer"), QMessageBox::ActionRole);
-    box.addButton(QMessageBox::Cancel);
-    box.exec();
+    auto* doc = m_workspace->document();
+    bool needsExpand = doc && (image.width() > doc->width() || image.height() > doc->height());
 
-    if (box.clickedButton() == openBtn) {
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("Open Dropped Image"));
+    auto* layout = new QVBoxLayout(&dlg);
+    layout->addWidget(new QLabel(tr("How would you like to open \"%1\"?").arg(name)));
+    auto* btnLayout = new QHBoxLayout;
+    auto* openBtn = new QPushButton(tr("Open as New Document"));
+    auto* layerBtn = new QPushButton(tr("Add as New Layer"));
+    QPushButton* expandBtn = nullptr;
+    auto* cancelBtn = new QPushButton(tr("Cancel"));
+    btnLayout->addWidget(openBtn);
+    btnLayout->addWidget(layerBtn);
+    if (needsExpand) {
+        expandBtn = new QPushButton(tr("Add as Layer && Expand Canvas"));
+        btnLayout->addWidget(expandBtn);
+    }
+    btnLayout->addWidget(cancelBtn);
+    layout->addLayout(btnLayout);
+    QPushButton* clicked = nullptr;
+    connect(openBtn, &QPushButton::clicked, &dlg, [&]() { clicked = openBtn; dlg.accept(); });
+    connect(layerBtn, &QPushButton::clicked, &dlg, [&]() { clicked = layerBtn; dlg.accept(); });
+    if (expandBtn)
+        connect(expandBtn, &QPushButton::clicked, &dlg, [&]() { clicked = expandBtn; dlg.accept(); });
+    connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    if (dlg.exec() == QDialog::Rejected) return;
+
+    if (clicked == openBtn) {
         QImage img = image.format() == QImage::Format_ARGB32
             ? image : image.convertToFormat(QImage::Format_ARGB32);
-        auto doc = std::make_unique<Document>(img.width(), img.height());
+        auto newDoc = std::make_unique<Document>(img.width(), img.height());
         auto layer = std::make_unique<BitmapLayer>(Surface(std::move(img)));
         layer->setName(name);
-        doc->addLayer(std::move(layer));
-        setNewDocument(std::move(doc), QString());
-    } else if (box.clickedButton() == layerBtn) {
+        newDoc->addLayer(std::move(layer));
+        setNewDocument(std::move(newDoc), QString());
+    } else if (expandBtn && clicked == expandBtn) {
+        importFromImageExpand(image, name);
+    } else if (clicked == layerBtn) {
         importFromImage(image, name);
     }
+}
+
+void MainWindow::importFromImageExpand(const QImage& image, const QString& name) {
+    auto* doc = m_workspace->document();
+    if (!doc) return;
+
+    int newW = qMax(image.width(), doc->width());
+    int newH = qMax(image.height(), doc->height());
+
+    // Build expanded document with all existing layers
+    auto newDoc = std::make_unique<Document>(newW, newH);
+    for (int i = 0; i < doc->layerCount(); ++i) {
+        auto* layer = dynamic_cast<BitmapLayer*>(doc->layerAt(i));
+        if (!layer) continue;
+
+        Surface expanded(newW, newH);
+        ColorBgra fill = (i == 0)
+            ? ColorBgra::fromBgra(255, 255, 255, 255)
+            : ColorBgra::fromBgra(0, 0, 0, 0);
+        expanded.clear(fill);
+        expanded.copySurface(layer->surface());
+
+        auto newLayer = std::make_unique<BitmapLayer>(std::move(expanded));
+        newLayer->setName(layer->name());
+        newLayer->setVisible(layer->isVisible());
+        newLayer->setOpacity(layer->opacity());
+        newDoc->addLayer(std::move(newLayer));
+    }
+
+    // Add the imported image as a new layer
+    QImage img = image.format() == QImage::Format_ARGB32
+        ? image : image.convertToFormat(QImage::Format_ARGB32);
+    Surface importSurf(newW, newH);
+    importSurf.copySurface(Surface(std::move(img)));
+    auto importLayer = std::make_unique<BitmapLayer>(std::move(importSurf));
+    importLayer->setName(name);
+    newDoc->addLayer(std::move(importLayer));
+
+    int newActiveIdx = newDoc->layerCount() - 1;
+
+    // Swap document with undo support
+    int activeIdx = m_workspace->activeLayerIndex();
+    auto [oldDoc, oldActiveIdx] = m_workspace->replaceDocumentForHistory(
+        std::move(newDoc), newActiveIdx);
+
+    ReplaceDocumentFn replaceFn = [this](std::unique_ptr<Document> d, int idx) {
+        auto result = m_workspace->replaceDocumentForHistory(std::move(d), idx);
+        m_workspace->canvas()->zoomToFit();
+        return result;
+    };
+    auto memento = std::make_unique<ReplaceDocumentMemento>(
+        tr("Import & Expand Canvas"), replaceFn, std::move(oldDoc), oldActiveIdx);
+    m_workspace->historyStack()->pushNewMemento(std::move(memento));
+
+    m_sizeLabel->setText(tr("Size: %1 x %2").arg(newW).arg(newH));
+    m_workspace->canvas()->zoomToFit();
+    m_workspace->invalidateAll();
 }
 
 void MainWindow::importFromImage(const QImage& image, const QString& name) {

@@ -54,7 +54,7 @@ struct ToolSettings {
     double selectionDrawHeight = 3.0;  // ratio H or pixel H
     ResamplingAlgorithm resamplingAlgorithm = ResamplingAlgorithm::Bilinear;
     ToolBlendMode blendMode = ToolBlendMode::Normal;
-    ColorPickerBehavior colorPickerBehavior = ColorPickerBehavior::SwitchToPrevious;
+    ColorPickerBehavior colorPickerBehavior = ColorPickerBehavior::DoNotSwitch;
     ColorBgra primaryColor = ColorBgra::black();
     ColorBgra secondaryColor = ColorBgra::white();
 
