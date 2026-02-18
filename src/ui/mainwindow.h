@@ -127,6 +127,7 @@ private:
     void onRotateZoom();
     void onLayerFlipHorizontal();
     void onLayerFlipVertical();
+    void onSwizzleChannel(int srcChannel, int dstChannel, bool transfer);
 
     // Dirty tracking / title
     void updateWindowTitle();

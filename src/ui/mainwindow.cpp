@@ -524,6 +524,25 @@ void MainWindow::createMenus() {
     layersMenu->addAction(tr("&Rotate / Zoom..."), this, &MainWindow::onRotateZoom);
     layersMenu->addAction(tr("Flip Layer &Horizontal"), this, &MainWindow::onLayerFlipHorizontal);
     layersMenu->addAction(tr("Flip Layer &Vertical"), this, &MainWindow::onLayerFlipVertical);
+    // Swizzle Color submenu
+    {
+        auto* swizzleMenu = layersMenu->addMenu(tr("S&wizzle Color"));
+        const QStringList channelNames = {tr("Red"), tr("Green"), tr("Blue"), tr("Alpha")};
+        for (int src = 0; src < 4; ++src) {
+            auto* srcMenu = swizzleMenu->addMenu(channelNames[src]);
+            for (int dst = 0; dst < 4; ++dst) {
+                if (dst == src) continue;
+                srcMenu->addAction(tr("Copy to %1").arg(channelNames[dst]),
+                    this, [this, src, dst]() { onSwizzleChannel(src, dst, false); });
+            }
+            srcMenu->addSeparator();
+            for (int dst = 0; dst < 4; ++dst) {
+                if (dst == src) continue;
+                srcMenu->addAction(tr("Transfer to %1").arg(channelNames[dst]),
+                    this, [this, src, dst]() { onSwizzleChannel(src, dst, true); });
+            }
+        }
+    }
     layersMenu->addSeparator();
     layersMenu->addAction(tr("Layer &Properties..."))->setEnabled(false);
 
@@ -2601,6 +2620,41 @@ void MainWindow::onLayerFlipVertical() {
 
     auto memento = std::make_unique<BitmapHistoryMemento>(
         tr("Flip Layer Vertical"), doc, idx, QRegion(layer->surface().bounds()), std::move(original));
+    m_workspace->historyStack()->pushNewMemento(std::move(memento));
+}
+
+void MainWindow::onSwizzleChannel(int srcChannel, int dstChannel, bool transfer) {
+    auto* doc = m_workspace->document();
+    if (!doc) return;
+    int idx = m_workspace->activeLayerIndex();
+    auto* layer = dynamic_cast<BitmapLayer*>(doc->layerAt(idx));
+    if (!layer) return;
+
+    Surface original = layer->surface().clone();
+
+    // Channel enum: R=0, G=1, B=2, A=3
+    // ColorBgra memory layout: B=0, G=1, R=2, A=3
+    static constexpr int byteOffset[] = {2, 1, 0, 3};
+    const int srcOff = byteOffset[srcChannel];
+    const int dstOff = byteOffset[dstChannel];
+
+    auto& surf = layer->surface();
+    for (int y = 0; y < surf.height(); ++y) {
+        auto* row = reinterpret_cast<uint8_t*>(surf.rowPtr(y));
+        for (int x = 0; x < surf.width(); ++x) {
+            row[x * 4 + dstOff] = row[x * 4 + srcOff];
+            if (transfer)
+                row[x * 4 + srcOff] = 0;
+        }
+    }
+
+    m_workspace->invalidateAll();
+
+    static const QStringList names = {tr("Red"), tr("Green"), tr("Blue"), tr("Alpha")};
+    const QString verb = transfer ? tr("Transfer") : tr("Copy");
+    auto memento = std::make_unique<BitmapHistoryMemento>(
+        tr("%1 %2 → %3").arg(verb, names[srcChannel], names[dstChannel]),
+        doc, idx, QRegion(surf.bounds()), std::move(original));
     m_workspace->historyStack()->pushNewMemento(std::move(memento));
 }
 
