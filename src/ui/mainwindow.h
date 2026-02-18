@@ -175,6 +175,7 @@ private:
     QLabel* m_posLabel;
     QLabel* m_sizeLabel;
     QLabel* m_zoomLabel;
+    QLabel* m_channelLabel = nullptr;
 
     // Scrollbars
     QScrollBar* m_hScrollBar;

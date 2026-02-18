@@ -451,6 +451,41 @@ void MainWindow::createMenus() {
     m_pixelGridAction->setCheckable(true);
     m_pixelGridAction->setChecked(false);
     connect(m_pixelGridAction, &QAction::toggled, m_workspace->canvas(), &CanvasWidget::setPixelGrid);
+
+    // Channel view submenu
+    {
+        auto* channelMenu = viewMenu->addMenu(tr("&Channel View"));
+        auto* channelGroup = new QActionGroup(this);
+
+        struct ChannelEntry { const char* label; ChannelView view; };
+        const ChannelEntry entries[] = {
+            {"&All Channels", ChannelView::All},
+            {"&Red",          ChannelView::Red},
+            {"&Green",        ChannelView::Green},
+            {"&Blue",         ChannelView::Blue},
+            {"Al&pha",        ChannelView::Alpha},
+        };
+        for (const auto& e : entries) {
+            auto* action = channelMenu->addAction(tr(e.label));
+            action->setCheckable(true);
+            channelGroup->addAction(action);
+            if (e.view == ChannelView::All) action->setChecked(true);
+            connect(action, &QAction::triggered, this, [this, v = e.view]() {
+                m_workspace->canvas()->setChannelView(v);
+            });
+        }
+
+        connect(m_workspace->canvas(), &CanvasWidget::channelViewChanged, this, [this](ChannelView view) {
+            if (view == ChannelView::All) {
+                m_channelLabel->hide();
+            } else {
+                static const QStringList names = {QString(), tr("Red"), tr("Green"), tr("Blue"), tr("Alpha")};
+                m_channelLabel->setText(tr("Channel: %1").arg(names[static_cast<int>(view)]));
+                m_channelLabel->show();
+            }
+        });
+    }
+
     viewMenu->addSeparator();
     m_rulersAction = viewMenu->addAction(tr("&Rulers"));
     m_rulersAction->setCheckable(true);
@@ -616,8 +651,13 @@ void MainWindow::createStatusBar() {
     m_zoomLabel->setCursor(Qt::PointingHandCursor);
     m_zoomLabel->installEventFilter(this);
 
+    m_channelLabel = new QLabel;
+    m_channelLabel->setMinimumWidth(100);
+    m_channelLabel->hide(); // hidden when viewing all channels
+
     statusBar()->addWidget(m_posLabel);
     statusBar()->addWidget(m_sizeLabel);
+    statusBar()->addPermanentWidget(m_channelLabel);
     statusBar()->addPermanentWidget(m_zoomLabel);
 }
 

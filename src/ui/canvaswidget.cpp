@@ -44,6 +44,7 @@ CanvasWidget::CanvasWidget(QWidget* parent)
 
 void CanvasWidget::setRenderSource(const Surface* surface) {
     m_source = surface;
+    m_channelFilteredImage = QImage(); // invalidate channel view cache
     update();
 }
 
@@ -169,6 +170,14 @@ void CanvasWidget::setPixelGrid(bool show) {
     if (m_showPixelGrid == show) return;
     m_showPixelGrid = show;
     update();
+}
+
+void CanvasWidget::setChannelView(ChannelView view) {
+    if (m_channelView == view) return;
+    m_channelView = view;
+    m_channelFilteredImage = QImage(); // invalidate cache
+    update();
+    emit channelViewChanged(view);
 }
 
 void CanvasWidget::drawPixelGrid(QPainter& painter, const QRectF& docRect) {
@@ -615,9 +624,37 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     drawCheckerboard(painter, pixelRect);
     painter.restore();
 
-    // Draw the document surface, scaled
+    // Draw the document surface, scaled (with optional channel view filter)
     painter.setRenderHint(QPainter::SmoothPixmapTransform, m_zoom < 1.0);
-    painter.drawImage(docRect, m_source->qimage(), QRectF(QPointF(0, 0), QSizeF(m_source->width(), m_source->height())));
+    const QImage& srcImg = m_source->qimage();
+    QRectF srcRect(QPointF(0, 0), QSizeF(m_source->width(), m_source->height()));
+
+    if (m_channelView == ChannelView::All) {
+        painter.drawImage(docRect, srcImg, srcRect);
+    } else {
+        // Rebuild filtered image if source changed or cache is invalid
+        if (m_channelFilteredImage.size() != srcImg.size()) {
+            m_channelFilteredImage = QImage(srcImg.size(), QImage::Format_RGB32);
+        }
+        // Channel byte offsets in ARGB32 (native QRgb): A=24, R=16, G=8, B=0
+        int shift = 0;
+        switch (m_channelView) {
+        case ChannelView::Red:   shift = 16; break;
+        case ChannelView::Green: shift = 8;  break;
+        case ChannelView::Blue:  shift = 0;  break;
+        case ChannelView::Alpha: shift = 24; break;
+        default: break;
+        }
+        for (int y = 0; y < srcImg.height(); ++y) {
+            const QRgb* src = reinterpret_cast<const QRgb*>(srcImg.constScanLine(y));
+            QRgb* dst = reinterpret_cast<QRgb*>(m_channelFilteredImage.scanLine(y));
+            for (int x = 0; x < srcImg.width(); ++x) {
+                uint8_t v = static_cast<uint8_t>((src[x] >> shift) & 0xFF);
+                dst[x] = qRgb(v, v, v);
+            }
+        }
+        painter.drawImage(docRect, m_channelFilteredImage, srcRect);
+    }
 
     // Draw pixel grid (between pixels when zoomed in enough)
     drawPixelGrid(painter, docRect);

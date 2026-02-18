@@ -14,6 +14,8 @@
 
 namespace paintnux {
 
+enum class ChannelView { All = 0, Red, Green, Blue, Alpha };
+
 /// Custom canvas widget that renders a composited document surface
 /// with zoom, pan, checkerboard transparency background, marching ants, and overlay.
 class CanvasWidget : public QWidget {
@@ -53,6 +55,11 @@ public:
 
     [[nodiscard]] bool pixelGrid() const { return m_showPixelGrid; }
     void setPixelGrid(bool show);
+
+    // --- Channel view ---
+
+    [[nodiscard]] ChannelView channelView() const { return m_channelView; }
+    void setChannelView(ChannelView view);
 
     static constexpr double MinZoom = 0.01;   // 1%
     static constexpr double MaxZoom = 32.0;    // 3200%
@@ -127,6 +134,7 @@ signals:
     void zoomChanged(double zoom);
     void scrollPositionChanged(QPointF pos);
     void cursorDocumentPosition(QPointF docPos);
+    void channelViewChanged(ChannelView view);
 
     // Tool event signals (document coordinates)
     void toolMouseDown(QPointF docPos, Qt::MouseButton button, Qt::KeyboardModifiers mods);
@@ -175,6 +183,10 @@ private:
 
     // Pixel grid
     bool m_showPixelGrid = false;
+
+    // Channel view
+    ChannelView m_channelView = ChannelView::All;
+    QImage m_channelFilteredImage;
 
     // Checkerboard tile
     static constexpr int CheckerSize = 8;
