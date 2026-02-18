@@ -1931,8 +1931,110 @@ void MainWindow::onFileExport() {
 
         if (settingsDlg.exec() != QDialog::Accepted) return;
         opts.tiffCompression = compCombo->currentData().toInt();
+
+    } else if (ext == QStringLiteral("bmp")) {
+        QDialog settingsDlg(this);
+        settingsDlg.setWindowTitle(tr("BMP Export Settings"));
+        auto* layout = new QVBoxLayout(&settingsDlg);
+
+        // Bit depth radio buttons
+        auto* depthGroup = new QGroupBox(tr("Color Depth"));
+        auto* depthLayout = new QVBoxLayout(depthGroup);
+        auto* radioAuto = new QRadioButton(tr("Auto-detect"));
+        auto* radio24   = new QRadioButton(tr("24-bit (RGB)"));
+        auto* radio8    = new QRadioButton(tr("8-bit (256 colors)"));
+        radioAuto->setChecked(true);
+        depthLayout->addWidget(radioAuto);
+        depthLayout->addWidget(radio24);
+        depthLayout->addWidget(radio8);
+        layout->addWidget(depthGroup);
+
+        // Dither level
+        auto* ditherLabel = new QLabel(tr("Dithering level:"));
+        layout->addWidget(ditherLabel);
+        auto* ditherRow = new QHBoxLayout;
+        auto* ditherSlider = new QSlider(Qt::Horizontal);
+        ditherSlider->setRange(0, 8);
+        ditherSlider->setValue(opts.bmpDitherLevel);
+        auto* ditherSpin = new QSpinBox;
+        ditherSpin->setRange(0, 8);
+        ditherSpin->setValue(opts.bmpDitherLevel);
+        connect(ditherSlider, &QSlider::valueChanged, ditherSpin, &QSpinBox::setValue);
+        connect(ditherSpin, qOverload<int>(&QSpinBox::valueChanged), ditherSlider, &QSlider::setValue);
+        ditherRow->addWidget(ditherSlider);
+        ditherRow->addWidget(ditherSpin);
+        layout->addLayout(ditherRow);
+
+        // Enable dither only for 8-bit
+        auto updateEnabled = [=]() {
+            bool is8bit = radio8->isChecked();
+            ditherSlider->setEnabled(is8bit);
+            ditherSpin->setEnabled(is8bit);
+            ditherLabel->setEnabled(is8bit);
+        };
+        connect(radioAuto, &QRadioButton::toggled, this, updateEnabled);
+        connect(radio24, &QRadioButton::toggled, this, updateEnabled);
+        connect(radio8, &QRadioButton::toggled, this, updateEnabled);
+        updateEnabled();
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &settingsDlg, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &settingsDlg, &QDialog::reject);
+        layout->addWidget(buttons);
+
+        if (settingsDlg.exec() != QDialog::Accepted) return;
+
+        if (radio24->isChecked()) opts.bmpBitDepth = BmpBitDepth::Bpp24;
+        else if (radio8->isChecked()) opts.bmpBitDepth = BmpBitDepth::Bpp8;
+        else opts.bmpBitDepth = BmpBitDepth::AutoDetect;
+        opts.bmpDitherLevel = ditherSpin->value();
+
+    } else if (ext == QStringLiteral("gif")) {
+        QDialog settingsDlg(this);
+        settingsDlg.setWindowTitle(tr("GIF Export Settings"));
+        auto* layout = new QVBoxLayout(&settingsDlg);
+
+        // Dither level
+        auto* ditherLabel = new QLabel(tr("Dithering level:"));
+        layout->addWidget(ditherLabel);
+        auto* ditherRow = new QHBoxLayout;
+        auto* ditherSlider = new QSlider(Qt::Horizontal);
+        ditherSlider->setRange(0, 8);
+        ditherSlider->setValue(opts.gifDitherLevel);
+        auto* ditherSpin = new QSpinBox;
+        ditherSpin->setRange(0, 8);
+        ditherSpin->setValue(opts.gifDitherLevel);
+        connect(ditherSlider, &QSlider::valueChanged, ditherSpin, &QSpinBox::setValue);
+        connect(ditherSpin, qOverload<int>(&QSpinBox::valueChanged), ditherSlider, &QSlider::setValue);
+        ditherRow->addWidget(ditherSlider);
+        ditherRow->addWidget(ditherSpin);
+        layout->addLayout(ditherRow);
+
+        // Transparency threshold
+        auto* threshLabel = new QLabel(tr("Transparency threshold:"));
+        layout->addWidget(threshLabel);
+        auto* threshRow = new QHBoxLayout;
+        auto* threshSlider = new QSlider(Qt::Horizontal);
+        threshSlider->setRange(0, 255);
+        threshSlider->setValue(opts.gifThreshold);
+        auto* threshSpin = new QSpinBox;
+        threshSpin->setRange(0, 255);
+        threshSpin->setValue(opts.gifThreshold);
+        connect(threshSlider, &QSlider::valueChanged, threshSpin, &QSpinBox::setValue);
+        connect(threshSpin, qOverload<int>(&QSpinBox::valueChanged), threshSlider, &QSlider::setValue);
+        threshRow->addWidget(threshSlider);
+        threshRow->addWidget(threshSpin);
+        layout->addLayout(threshRow);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &settingsDlg, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &settingsDlg, &QDialog::reject);
+        layout->addWidget(buttons);
+
+        if (settingsDlg.exec() != QDialog::Accepted) return;
+        opts.gifDitherLevel = ditherSpin->value();
+        opts.gifThreshold = threshSpin->value();
     }
-    // BMP/GIF: no settings dialog, export directly
 
     auto result = exportDocument(*doc, filePath, opts);
     if (!result.success) {

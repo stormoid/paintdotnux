@@ -568,9 +568,36 @@ FileIOResult exportDocument(const Document& doc, const QString& filePath, const 
 
     QString ext = QFileInfo(filePath).suffix().toLower();
 
-    // JPEG needs RGB (no alpha)
+    // Format-specific image conversion
     if (ext == QStringLiteral("jpg") || ext == QStringLiteral("jpeg")) {
         img = img.convertToFormat(QImage::Format_RGB32);
+    } else if (ext == QStringLiteral("png")) {
+        img = applyPngBitDepth(img, opts.pngBitDepth, opts.pngDitherLevel, opts.pngThreshold);
+    } else if (ext == QStringLiteral("bmp")) {
+        if (img.format() != QImage::Format_ARGB32)
+            img = img.convertToFormat(QImage::Format_ARGB32);
+        bool need8bit = (opts.bmpBitDepth == BmpBitDepth::Bpp8);
+        if (opts.bmpBitDepth == BmpBitDepth::AutoDetect) {
+            QSet<QRgb> colors;
+            bool tooMany = false;
+            for (int y = 0; y < img.height() && !tooMany; ++y) {
+                const QRgb* row = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+                for (int x = 0; x < img.width(); ++x) {
+                    colors.insert(row[x] | 0xFF000000u); // ignore alpha for BMP
+                    if (colors.size() > 256) { tooMany = true; break; }
+                }
+            }
+            need8bit = !tooMany;
+        }
+        if (need8bit)
+            img = quantizeTo8Bit(img, false, opts.bmpDitherLevel, 0);
+        else
+            img = img.convertToFormat(QImage::Format_RGB32);
+    } else if (ext == QStringLiteral("gif")) {
+        if (img.format() != QImage::Format_ARGB32)
+            img = img.convertToFormat(QImage::Format_ARGB32);
+        bool hasAlpha = imageHasTransparency(img);
+        img = quantizeTo8Bit(img, hasAlpha, opts.gifDitherLevel, opts.gifThreshold);
     }
 
     QImageWriter writer(filePath);
@@ -579,8 +606,6 @@ FileIOResult exportDocument(const Document& doc, const QString& filePath, const 
         writer.setQuality(opts.jpegQuality);
         if (opts.jpegProgressive)
             writer.setOptimizedWrite(true);  // progressive for JPEG
-    } else if (ext == QStringLiteral("png")) {
-        img = applyPngBitDepth(img, opts.pngBitDepth, opts.pngDitherLevel, opts.pngThreshold);
     } else if (ext == QStringLiteral("webp")) {
         writer.setQuality(opts.webpQuality);
     } else if (ext == QStringLiteral("tif") || ext == QStringLiteral("tiff")) {

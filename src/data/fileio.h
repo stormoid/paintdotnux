@@ -36,12 +36,22 @@ enum class PngBitDepth {
     Bpp8 = 3
 };
 
+enum class BmpBitDepth {
+    AutoDetect = 0,
+    Bpp24 = 1,
+    Bpp8 = 2
+};
+
 struct ExportOptions {
     int jpegQuality = 95;           // 0-100
     bool jpegProgressive = false;
     PngBitDepth pngBitDepth = PngBitDepth::AutoDetect;
     int pngDitherLevel = 7;         // 0-8, Floyd-Steinberg weight
     int pngThreshold = 128;         // 0-255, alpha threshold for 8-bit
+    BmpBitDepth bmpBitDepth = BmpBitDepth::AutoDetect;
+    int bmpDitherLevel = 7;         // 0-8, Floyd-Steinberg weight
+    int gifDitherLevel = 7;         // 0-8, Floyd-Steinberg weight
+    int gifThreshold = 128;         // 0-255, alpha threshold
     int webpQuality = 90;           // 0-100
     int tiffCompression = 1;        // 0=None, 1=LZW
 };
