@@ -1137,19 +1137,23 @@ bool MainWindow::maybeSave() {
         ? tr("Untitled")
         : QFileInfo(m_currentFilePath).fileName();
 
-    auto result = QMessageBox::warning(this, tr("Unsaved Changes"),
-        tr("Do you want to save changes to \"%1\"?").arg(name),
-        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
-        QMessageBox::Save);
+    QMessageBox msgBox(QMessageBox::Warning, tr("Unsaved Changes"),
+        tr("Do you want to save changes to \"%1\"?").arg(name), QMessageBox::NoButton, this);
+    auto* saveBtn = msgBox.addButton(tr("&Save"), QMessageBox::AcceptRole);
+    auto* discardBtn = msgBox.addButton(tr("Close &Without Saving"), QMessageBox::DestructiveRole);
+    auto* cancelBtn = msgBox.addButton(tr("Cancel"), QMessageBox::RejectRole);
+    msgBox.setDefaultButton(saveBtn);
+    msgBox.setEscapeButton(cancelBtn);
+    msgBox.exec();
 
-    if (result == QMessageBox::Save) {
+    if (msgBox.clickedButton() == saveBtn) {
         onFileSave();
         return !m_dirty; // false if save was cancelled
     }
-    if (result == QMessageBox::Cancel) {
-        return false;
+    if (msgBox.clickedButton() == discardBtn) {
+        return true;
     }
-    return true; // Discard
+    return false; // Cancel
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
