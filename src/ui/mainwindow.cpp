@@ -524,22 +524,22 @@ void MainWindow::createMenus() {
     layersMenu->addAction(tr("&Rotate / Zoom..."), this, &MainWindow::onRotateZoom);
     layersMenu->addAction(tr("Flip Layer &Horizontal"), this, &MainWindow::onLayerFlipHorizontal);
     layersMenu->addAction(tr("Flip Layer &Vertical"), this, &MainWindow::onLayerFlipVertical);
-    // Swizzle Color submenu
+    // Remap Channels submenu
     {
-        auto* swizzleMenu = layersMenu->addMenu(tr("S&wizzle Color"));
+        auto* remapMenu = layersMenu->addMenu(tr("&Remap Channels"));
         const QStringList channelNames = {tr("Red"), tr("Green"), tr("Blue"), tr("Alpha")};
         for (int src = 0; src < 4; ++src) {
-            auto* srcMenu = swizzleMenu->addMenu(channelNames[src]);
+            auto* srcMenu = remapMenu->addMenu(channelNames[src]);
             for (int dst = 0; dst < 4; ++dst) {
                 if (dst == src) continue;
                 srcMenu->addAction(tr("Copy to %1").arg(channelNames[dst]),
-                    this, [this, src, dst]() { onSwizzleChannel(src, dst, false); });
+                    this, [this, src, dst]() { onRemapChannel(src, dst, false); });
             }
             srcMenu->addSeparator();
             for (int dst = 0; dst < 4; ++dst) {
                 if (dst == src) continue;
                 srcMenu->addAction(tr("Transfer to %1").arg(channelNames[dst]),
-                    this, [this, src, dst]() { onSwizzleChannel(src, dst, true); });
+                    this, [this, src, dst]() { onRemapChannel(src, dst, true); });
             }
         }
     }
@@ -2815,7 +2815,7 @@ void MainWindow::onLayerFlipVertical() {
     m_workspace->historyStack()->pushNewMemento(std::move(memento));
 }
 
-void MainWindow::onSwizzleChannel(int srcChannel, int dstChannel, bool transfer) {
+void MainWindow::onRemapChannel(int srcChannel, int dstChannel, bool transfer) {
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
