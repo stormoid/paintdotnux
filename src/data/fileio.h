@@ -29,10 +29,19 @@ QString saveFileFilter();
 /// Returns a file filter string for Export (flat formats only, no .pnx).
 QString exportFileFilter();
 
+enum class PngBitDepth {
+    AutoDetect = 0,
+    Bpp32 = 1,
+    Bpp24 = 2,
+    Bpp8 = 3
+};
+
 struct ExportOptions {
     int jpegQuality = 95;           // 0-100
     bool jpegProgressive = false;
-    int pngCompression = 50;        // 0=none, 100=max
+    PngBitDepth pngBitDepth = PngBitDepth::AutoDetect;
+    int pngDitherLevel = 7;         // 0-8, Floyd-Steinberg weight
+    int pngThreshold = 128;         // 0-255, alpha threshold for 8-bit
     int webpQuality = 90;           // 0-100
     int tiffCompression = 1;        // 0=None, 1=LZW
 };

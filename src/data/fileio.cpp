@@ -10,6 +10,13 @@
 #include <QImageReader>
 #include <QImageWriter>
 #include <QByteArray>
+#include <QSet>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstring>
+#include <vector>
 
 namespace paintnux {
 
@@ -277,6 +284,284 @@ QString exportFileFilter() {
         "WebP (*.webp)");
 }
 
+// --- Octree color quantizer for 8-bit PNG ---
+
+struct OctreeNode {
+    uint64_t rSum = 0, gSum = 0, bSum = 0;
+    uint64_t pixelCount = 0;
+    int paletteIndex = -1;
+    std::array<int, 8> children{}; // indices into node pool, 0 = none
+    bool isLeaf = false;
+    int level = 0;
+
+    OctreeNode() { children.fill(0); }
+};
+
+static int childIndex(uint8_t r, uint8_t g, uint8_t b, int level) {
+    int shift = 7 - level;
+    return ((r >> shift) & 1) << 2 | ((g >> shift) & 1) << 1 | ((b >> shift) & 1);
+}
+
+struct OctreeQuantizer {
+    std::vector<OctreeNode> nodes;
+    std::array<std::vector<int>, 8> levelNodes; // node indices per level
+    int leafCount = 0;
+    int maxColors = 255; // reserve 1 slot for transparent
+
+    OctreeQuantizer() {
+        nodes.reserve(8192);
+        nodes.emplace_back(); // root at index 0
+    }
+
+    void addColor(uint8_t r, uint8_t g, uint8_t b) {
+        int nodeIdx = 0; // root
+        for (int level = 0; level < 8; ++level) {
+            int ci = childIndex(r, g, b, level);
+            if (nodes[nodeIdx].children[ci] == 0) {
+                int newIdx = static_cast<int>(nodes.size());
+                nodes.emplace_back();
+                nodes[newIdx].level = level + 1;
+                // Re-fetch after potential realloc
+                nodes[nodeIdx].children[ci] = newIdx;
+                if (level == 7) {
+                    nodes[newIdx].isLeaf = true;
+                    leafCount++;
+                } else {
+                    levelNodes[level + 1].push_back(newIdx);
+                }
+            }
+            nodeIdx = nodes[nodeIdx].children[ci];
+        }
+        nodes[nodeIdx].rSum += r;
+        nodes[nodeIdx].gSum += g;
+        nodes[nodeIdx].bSum += b;
+        nodes[nodeIdx].pixelCount++;
+    }
+
+    void reduce() {
+        while (leafCount > maxColors) {
+            // Find deepest non-leaf level with nodes
+            int level = 7;
+            while (level > 0 && levelNodes[level].empty()) --level;
+            if (level == 0) break;
+
+            // Merge children of all nodes at this level
+            auto& lnodes = levelNodes[level];
+            for (int idx : lnodes) {
+                auto& node = nodes[idx];
+                if (node.isLeaf) continue;
+                int childrenMerged = 0;
+                for (int ci = 0; ci < 8; ++ci) {
+                    if (node.children[ci] != 0) {
+                        auto& child = nodes[node.children[ci]];
+                        node.rSum += child.rSum;
+                        node.gSum += child.gSum;
+                        node.bSum += child.bSum;
+                        node.pixelCount += child.pixelCount;
+                        if (child.isLeaf) childrenMerged++;
+                        node.children[ci] = 0;
+                    }
+                }
+                node.isLeaf = true;
+                leafCount -= (childrenMerged - 1); // merged N leaves into 1
+            }
+            lnodes.clear();
+        }
+    }
+
+    QVector<QRgb> buildPalette(bool hasTransparency) {
+        QVector<QRgb> palette;
+        if (hasTransparency) palette.append(qRgba(0, 0, 0, 0)); // index 0 = transparent
+        assignIndices(0, palette);
+        return palette;
+    }
+
+    void assignIndices(int nodeIdx, QVector<QRgb>& palette) {
+        auto& node = nodes[nodeIdx];
+        if (node.isLeaf && node.pixelCount > 0) {
+            node.paletteIndex = palette.size();
+            uint8_t r = static_cast<uint8_t>(node.rSum / node.pixelCount);
+            uint8_t g = static_cast<uint8_t>(node.gSum / node.pixelCount);
+            uint8_t b = static_cast<uint8_t>(node.bSum / node.pixelCount);
+            palette.append(qRgb(r, g, b));
+            return;
+        }
+        for (int ci = 0; ci < 8; ++ci) {
+            if (node.children[ci] != 0)
+                assignIndices(node.children[ci], palette);
+        }
+    }
+
+    int findNearest(uint8_t r, uint8_t g, uint8_t b) const {
+        int nodeIdx = 0;
+        int lastLeaf = -1;
+        for (int level = 0; level < 8; ++level) {
+            const auto& node = nodes[nodeIdx];
+            if (node.isLeaf) { lastLeaf = node.paletteIndex; break; }
+            int ci = childIndex(r, g, b, level);
+            if (node.children[ci] == 0) {
+                // Find any existing child
+                for (int i = 0; i < 8; ++i) {
+                    if (node.children[i] != 0) {
+                        nodeIdx = node.children[i];
+                        break;
+                    }
+                }
+                // Walk down to leaf
+                while (!nodes[nodeIdx].isLeaf) {
+                    for (int i = 0; i < 8; ++i) {
+                        if (nodes[nodeIdx].children[i] != 0) {
+                            nodeIdx = nodes[nodeIdx].children[i];
+                            break;
+                        }
+                    }
+                }
+                lastLeaf = nodes[nodeIdx].paletteIndex;
+                break;
+            }
+            nodeIdx = node.children[ci];
+        }
+        return lastLeaf >= 0 ? lastLeaf : 0;
+    }
+
+    // Get the palette color for an index
+    static void paletteColor(const QVector<QRgb>& palette, int idx, int& r, int& g, int& b) {
+        QRgb c = palette[idx];
+        r = qRed(c); g = qGreen(c); b = qBlue(c);
+    }
+};
+
+static QImage quantizeTo8Bit(const QImage& src, bool withAlpha, int ditherLevel, int threshold) {
+    int w = src.width(), h = src.height();
+
+    // Build octree from opaque pixels
+    OctreeQuantizer qt;
+    for (int y = 0; y < h; ++y) {
+        const QRgb* row = reinterpret_cast<const QRgb*>(src.constScanLine(y));
+        for (int x = 0; x < w; ++x) {
+            if (withAlpha && qAlpha(row[x]) < threshold) continue;
+            qt.addColor(qRed(row[x]), qGreen(row[x]), qBlue(row[x]));
+        }
+    }
+    qt.reduce();
+    QVector<QRgb> palette = qt.buildPalette(withAlpha);
+
+    // Create indexed image
+    QImage dst(w, h, QImage::Format_Indexed8);
+    dst.setColorTable(palette);
+
+    // Error diffusion buffers (Floyd-Steinberg)
+    std::vector<int> errR0(w + 2, 0), errG0(w + 2, 0), errB0(w + 2, 0);
+    std::vector<int> errR1(w + 2, 0), errG1(w + 2, 0), errB1(w + 2, 0);
+
+    int transparentIdx = withAlpha ? 0 : -1;
+
+    for (int y = 0; y < h; ++y) {
+        const QRgb* srcRow = reinterpret_cast<const QRgb*>(src.constScanLine(y));
+        uint8_t* dstRow = dst.scanLine(y);
+
+        std::fill(errR1.begin(), errR1.end(), 0);
+        std::fill(errG1.begin(), errG1.end(), 0);
+        std::fill(errB1.begin(), errB1.end(), 0);
+
+        for (int x = 0; x < w; ++x) {
+            QRgb px = srcRow[x];
+
+            if (withAlpha && qAlpha(px) < threshold) {
+                dstRow[x] = static_cast<uint8_t>(transparentIdx);
+                continue;
+            }
+
+            // Apply accumulated error
+            int r = qRed(px)   - (errR0[x + 1] * ditherLevel) / 8;
+            int g = qGreen(px) - (errG0[x + 1] * ditherLevel) / 8;
+            int b = qBlue(px)  - (errB0[x + 1] * ditherLevel) / 8;
+            r = std::clamp(r, 0, 255);
+            g = std::clamp(g, 0, 255);
+            b = std::clamp(b, 0, 255);
+
+            int idx = qt.findNearest(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b));
+            dstRow[x] = static_cast<uint8_t>(idx);
+
+            // Compute error
+            int pr, pg, pb;
+            OctreeQuantizer::paletteColor(palette, idx, pr, pg, pb);
+            int er = r - pr, eg = g - pg, eb = b - pb;
+
+            // Floyd-Steinberg distribution: 7/16 right, 3/16 below-left, 5/16 below, 1/16 below-right
+            errR0[x + 2] += er * 7 / 16;  errG0[x + 2] += eg * 7 / 16;  errB0[x + 2] += eb * 7 / 16;
+            errR1[x]     += er * 3 / 16;  errG1[x]     += eg * 3 / 16;  errB1[x]     += eb * 3 / 16;
+            errR1[x + 1] += er * 5 / 16;  errG1[x + 1] += eg * 5 / 16;  errB1[x + 1] += eb * 5 / 16;
+            errR1[x + 2] += er * 1 / 16;  errG1[x + 2] += eg * 1 / 16;  errB1[x + 2] += eb * 1 / 16;
+        }
+
+        std::swap(errR0, errR1);
+        std::swap(errG0, errG1);
+        std::swap(errB0, errB1);
+    }
+
+    return dst;
+}
+
+static bool imageHasTransparency(const QImage& img) {
+    for (int y = 0; y < img.height(); ++y) {
+        const QRgb* row = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+        for (int x = 0; x < img.width(); ++x) {
+            if (qAlpha(row[x]) < 255) return true;
+        }
+    }
+    return false;
+}
+
+static bool imageHasPartialAlpha(const QImage& img) {
+    for (int y = 0; y < img.height(); ++y) {
+        const QRgb* row = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+        for (int x = 0; x < img.width(); ++x) {
+            uint8_t a = qAlpha(row[x]);
+            if (a != 0 && a != 255) return true;
+        }
+    }
+    return false;
+}
+
+static QImage applyPngBitDepth(const QImage& src, PngBitDepth depth, int ditherLevel, int threshold) {
+    QImage img = src.format() == QImage::Format_ARGB32 ? src : src.convertToFormat(QImage::Format_ARGB32);
+
+    bool hasTransparency = imageHasTransparency(img);
+
+    switch (depth) {
+    case PngBitDepth::Bpp32:
+        return img; // full RGBA32
+
+    case PngBitDepth::Bpp24:
+        return img.convertToFormat(QImage::Format_RGB32); // drop alpha
+
+    case PngBitDepth::Bpp8:
+        return quantizeTo8Bit(img, hasTransparency, ditherLevel, threshold);
+
+    case PngBitDepth::AutoDetect:
+    default:
+        // Auto: use 32-bit if partial alpha, 24-bit if fully opaque, 8-bit if <= 256 unique colors
+        if (imageHasPartialAlpha(img)) return img; // need full alpha
+        // Count unique colors (quick check, bail if > 256)
+        {
+            QSet<QRgb> colors;
+            bool tooMany = false;
+            for (int y = 0; y < img.height() && !tooMany; ++y) {
+                const QRgb* row = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+                for (int x = 0; x < img.width(); ++x) {
+                    colors.insert(row[x]);
+                    if (colors.size() > 256) { tooMany = true; break; }
+                }
+            }
+            if (!tooMany)
+                return quantizeTo8Bit(img, hasTransparency, ditherLevel, threshold);
+        }
+        if (!hasTransparency) return img.convertToFormat(QImage::Format_RGB32);
+        return img; // keep RGBA32
+    }
+}
+
 FileIOResult exportDocument(const Document& doc, const QString& filePath, const ExportOptions& opts) {
     Surface flat = doc.flatten();
     QImage img = flat.qimage();
@@ -295,7 +580,7 @@ FileIOResult exportDocument(const Document& doc, const QString& filePath, const 
         if (opts.jpegProgressive)
             writer.setOptimizedWrite(true);  // progressive for JPEG
     } else if (ext == QStringLiteral("png")) {
-        writer.setQuality(opts.pngCompression);
+        img = applyPngBitDepth(img, opts.pngBitDepth, opts.pngDitherLevel, opts.pngThreshold);
     } else if (ext == QStringLiteral("webp")) {
         writer.setQuality(opts.webpQuality);
     } else if (ext == QStringLiteral("tif") || ext == QStringLiteral("tiff")) {

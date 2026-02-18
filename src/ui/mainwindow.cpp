@@ -1806,20 +1806,67 @@ void MainWindow::onFileExport() {
         settingsDlg.setWindowTitle(tr("PNG Export Settings"));
         auto* layout = new QVBoxLayout(&settingsDlg);
 
-        auto* compLabel = new QLabel(tr("Compression:"));
-        layout->addWidget(compLabel);
-        auto* compRow = new QHBoxLayout;
-        auto* compSlider = new QSlider(Qt::Horizontal);
-        compSlider->setRange(0, 100);
-        compSlider->setValue(opts.pngCompression);
-        auto* compSpin = new QSpinBox;
-        compSpin->setRange(0, 100);
-        compSpin->setValue(opts.pngCompression);
-        connect(compSlider, &QSlider::valueChanged, compSpin, &QSpinBox::setValue);
-        connect(compSpin, qOverload<int>(&QSpinBox::valueChanged), compSlider, &QSlider::setValue);
-        compRow->addWidget(compSlider);
-        compRow->addWidget(compSpin);
-        layout->addLayout(compRow);
+        // Bit depth radio buttons
+        auto* depthGroup = new QGroupBox(tr("Color Depth"));
+        auto* depthLayout = new QVBoxLayout(depthGroup);
+        auto* radioAuto = new QRadioButton(tr("Auto-detect"));
+        auto* radio32   = new QRadioButton(tr("32-bit (RGBA)"));
+        auto* radio24   = new QRadioButton(tr("24-bit (RGB, no transparency)"));
+        auto* radio8    = new QRadioButton(tr("8-bit (256 colors)"));
+        radioAuto->setChecked(true);
+        depthLayout->addWidget(radioAuto);
+        depthLayout->addWidget(radio32);
+        depthLayout->addWidget(radio24);
+        depthLayout->addWidget(radio8);
+        layout->addWidget(depthGroup);
+
+        // Dither level
+        auto* ditherLabel = new QLabel(tr("Dithering level:"));
+        layout->addWidget(ditherLabel);
+        auto* ditherRow = new QHBoxLayout;
+        auto* ditherSlider = new QSlider(Qt::Horizontal);
+        ditherSlider->setRange(0, 8);
+        ditherSlider->setValue(opts.pngDitherLevel);
+        auto* ditherSpin = new QSpinBox;
+        ditherSpin->setRange(0, 8);
+        ditherSpin->setValue(opts.pngDitherLevel);
+        connect(ditherSlider, &QSlider::valueChanged, ditherSpin, &QSpinBox::setValue);
+        connect(ditherSpin, qOverload<int>(&QSpinBox::valueChanged), ditherSlider, &QSlider::setValue);
+        ditherRow->addWidget(ditherSlider);
+        ditherRow->addWidget(ditherSpin);
+        layout->addLayout(ditherRow);
+
+        // Transparency threshold
+        auto* threshLabel = new QLabel(tr("Transparency threshold:"));
+        layout->addWidget(threshLabel);
+        auto* threshRow = new QHBoxLayout;
+        auto* threshSlider = new QSlider(Qt::Horizontal);
+        threshSlider->setRange(0, 255);
+        threshSlider->setValue(opts.pngThreshold);
+        auto* threshSpin = new QSpinBox;
+        threshSpin->setRange(0, 255);
+        threshSpin->setValue(opts.pngThreshold);
+        connect(threshSlider, &QSlider::valueChanged, threshSpin, &QSpinBox::setValue);
+        connect(threshSpin, qOverload<int>(&QSpinBox::valueChanged), threshSlider, &QSlider::setValue);
+        threshRow->addWidget(threshSlider);
+        threshRow->addWidget(threshSpin);
+        layout->addLayout(threshRow);
+
+        // Enable dither/threshold only for 8-bit
+        auto updateEnabled = [=]() {
+            bool is8bit = radio8->isChecked();
+            ditherSlider->setEnabled(is8bit);
+            ditherSpin->setEnabled(is8bit);
+            threshSlider->setEnabled(is8bit);
+            threshSpin->setEnabled(is8bit);
+            ditherLabel->setEnabled(is8bit);
+            threshLabel->setEnabled(is8bit);
+        };
+        connect(radioAuto, &QRadioButton::toggled, this, updateEnabled);
+        connect(radio32, &QRadioButton::toggled, this, updateEnabled);
+        connect(radio24, &QRadioButton::toggled, this, updateEnabled);
+        connect(radio8, &QRadioButton::toggled, this, updateEnabled);
+        updateEnabled();
 
         auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
         connect(buttons, &QDialogButtonBox::accepted, &settingsDlg, &QDialog::accept);
@@ -1827,7 +1874,14 @@ void MainWindow::onFileExport() {
         layout->addWidget(buttons);
 
         if (settingsDlg.exec() != QDialog::Accepted) return;
-        opts.pngCompression = compSpin->value();
+
+        if (radio32->isChecked()) opts.pngBitDepth = PngBitDepth::Bpp32;
+        else if (radio24->isChecked()) opts.pngBitDepth = PngBitDepth::Bpp24;
+        else if (radio8->isChecked()) opts.pngBitDepth = PngBitDepth::Bpp8;
+        else opts.pngBitDepth = PngBitDepth::AutoDetect;
+
+        opts.pngDitherLevel = ditherSpin->value();
+        opts.pngThreshold = threshSpin->value();
 
     } else if (ext == QStringLiteral("webp")) {
         QDialog settingsDlg(this);
