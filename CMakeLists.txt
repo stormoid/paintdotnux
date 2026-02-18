@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Help CMake find Homebrew Qt on macOS without requiring manual -DCMAKE_PREFIX_PATH.
+if(APPLE)
+    list(PREPEND CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt" "/usr/local/opt/qt")
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent PrintSupport Network)
 qt_standard_project_setup()
 
@@ -127,17 +132,34 @@ target_link_libraries(paintnux_ui PUBLIC paintnux_tools paintnux_adjustments pai
 
 # App executable
 qt_add_resources(APP_RESOURCES resources/resources.qrc)
-add_executable(paintnux
-    src/app/main.cpp
-    ${APP_RESOURCES}
-)
+if(APPLE)
+    add_executable(paintnux MACOSX_BUNDLE
+        src/app/main.cpp
+        ${APP_RESOURCES}
+    )
+    set_target_properties(paintnux PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "paintnux"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.stormoid.paintnux"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    )
+else()
+    add_executable(paintnux
+        src/app/main.cpp
+        ${APP_RESOURCES}
+    )
+endif()
 target_link_libraries(paintnux PRIVATE paintnux_ui)
 
 # Install rules
 include(GNUInstallDirs)
-install(TARGETS paintnux RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES resources/paintnux.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/paintnux.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+if(APPLE)
+    install(TARGETS paintnux BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+else()
+    install(TARGETS paintnux RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES resources/paintnux.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES resources/paintnux.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+endif()
 
 # CPack packaging (deb, rpm)
 set(CPACK_PACKAGE_NAME "paintdotnux")
@@ -148,13 +170,19 @@ set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/stormoid/paintdotnux")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 
 # DEB
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6widgets6 (>= 6.2), libqt6svg6 (>= 6.2)")
-set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+if(APPLE)
+    set(CPACK_GENERATOR "DragNDrop")
+    set(CPACK_DMG_VOLUME_NAME "paintnux-${PROJECT_VERSION}")
+else()
+    # DEB
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6widgets6 (>= 6.2), libqt6svg6 (>= 6.2)")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
 
-# RPM
-set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase >= 6.2, qt6-qtsvg >= 6.2")
-set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
-set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+    # RPM
+    set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase >= 6.2, qt6-qtsvg >= 6.2")
+    set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
+    set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+endif()
 
 include(CPack)
 
