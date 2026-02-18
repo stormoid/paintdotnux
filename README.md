@@ -6,6 +6,8 @@ This project was written entirely by LLM (Claude) with human supervision, and wi
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
+![Screenshot](screenshot.png)
+
 ## Dependencies
 
 - **C++20** compiler (GCC 12+ or Clang 15+)
