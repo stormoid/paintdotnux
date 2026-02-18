@@ -267,4 +267,46 @@ QString saveFileFilter() {
         "WebP (*.webp)");
 }
 
+QString exportFileFilter() {
+    return QStringLiteral(
+        "PNG (*.png);;"
+        "JPEG (*.jpg *.jpeg);;"
+        "BMP (*.bmp);;"
+        "GIF (*.gif);;"
+        "TIFF (*.tif *.tiff);;"
+        "WebP (*.webp)");
+}
+
+FileIOResult exportDocument(const Document& doc, const QString& filePath, const ExportOptions& opts) {
+    Surface flat = doc.flatten();
+    QImage img = flat.qimage();
+
+    QString ext = QFileInfo(filePath).suffix().toLower();
+
+    // JPEG needs RGB (no alpha)
+    if (ext == QStringLiteral("jpg") || ext == QStringLiteral("jpeg")) {
+        img = img.convertToFormat(QImage::Format_RGB32);
+    }
+
+    QImageWriter writer(filePath);
+
+    if (ext == QStringLiteral("jpg") || ext == QStringLiteral("jpeg")) {
+        writer.setQuality(opts.jpegQuality);
+        if (opts.jpegProgressive)
+            writer.setOptimizedWrite(true);  // progressive for JPEG
+    } else if (ext == QStringLiteral("png")) {
+        writer.setQuality(opts.pngCompression);
+    } else if (ext == QStringLiteral("webp")) {
+        writer.setQuality(opts.webpQuality);
+    } else if (ext == QStringLiteral("tif") || ext == QStringLiteral("tiff")) {
+        writer.setCompression(opts.tiffCompression);
+    }
+
+    if (!writer.write(img)) {
+        return {false, QStringLiteral("Failed to export image: ") + writer.errorString()};
+    }
+
+    return {true, {}};
+}
+
 } // namespace paintnux

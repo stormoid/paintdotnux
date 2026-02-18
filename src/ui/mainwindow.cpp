@@ -33,6 +33,8 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGridLayout>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QMenuBar>
 #include <QRegularExpression>
 #include <QMessageBox>
@@ -390,7 +392,12 @@ void MainWindow::createMenus() {
     fileMenu->addAction(tr("&Open..."), QKeySequence::Open, this, &MainWindow::onFileOpen);
     fileMenu->addSeparator();
     m_saveAction = fileMenu->addAction(tr("&Save"), QKeySequence::Save, this, &MainWindow::onFileSave);
-    fileMenu->addAction(tr("Save &As..."), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this, &MainWindow::onFileSaveAs);
+    m_saveAction->setStatusTip(tr("Save using current format settings"));
+    auto* saveAsAction = fileMenu->addAction(tr("Save &As..."), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this, &MainWindow::onFileSaveAs);
+    saveAsAction->setStatusTip(tr("Save to a new file using default format settings"));
+    fileMenu->addSeparator();
+    auto* exportAction = fileMenu->addAction(tr("E&xport (w/ Options)..."), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this, &MainWindow::onFileExport);
+    exportAction->setStatusTip(tr("Export with format-specific quality and compression settings"));
     fileMenu->addSeparator();
     fileMenu->addAction(tr("&Print..."), QKeySequence::Print, this, &MainWindow::onPrint);
     fileMenu->addAction(tr("Print Pre&view..."), this, &MainWindow::onPrintPreview);
@@ -1676,6 +1683,153 @@ void MainWindow::onFileSaveAs() {
     m_currentFilePath = filePath;
     clearDirty();
     addRecentFile(filePath);
+}
+
+void MainWindow::onFileExport() {
+    auto* doc = m_workspace->document();
+    if (!doc) return;
+
+    // File dialog for flat formats only
+    QFileDialog dlg(this, tr("Export"), m_currentFilePath, exportFileFilter());
+    dlg.setAcceptMode(QFileDialog::AcceptSave);
+    dlg.setOption(QFileDialog::DontUseNativeDialog);
+    dlg.setDefaultSuffix(QStringLiteral("png"));
+
+    connect(&dlg, &QFileDialog::filterSelected, &dlg, [&dlg](const QString& filter) {
+        static const QRegularExpression extRe(QStringLiteral(R"(\*\.(\w+))"));
+        auto match = extRe.match(filter);
+        if (match.hasMatch())
+            dlg.setDefaultSuffix(match.captured(1));
+    });
+
+    if (dlg.exec() != QDialog::Accepted) return;
+    QString filePath = dlg.selectedFiles().first();
+    QString ext = QFileInfo(filePath).suffix().toLower();
+
+    ExportOptions opts;
+
+    // Show format-specific settings dialog for formats that have options
+    if (ext == QStringLiteral("jpg") || ext == QStringLiteral("jpeg")) {
+        QDialog settingsDlg(this);
+        settingsDlg.setWindowTitle(tr("JPEG Export Settings"));
+        auto* layout = new QVBoxLayout(&settingsDlg);
+
+        // Quality
+        auto* qualLabel = new QLabel(tr("Quality:"));
+        layout->addWidget(qualLabel);
+        auto* qualRow = new QHBoxLayout;
+        auto* qualSlider = new QSlider(Qt::Horizontal);
+        qualSlider->setRange(0, 100);
+        qualSlider->setValue(opts.jpegQuality);
+        auto* qualSpin = new QSpinBox;
+        qualSpin->setRange(0, 100);
+        qualSpin->setValue(opts.jpegQuality);
+        connect(qualSlider, &QSlider::valueChanged, qualSpin, &QSpinBox::setValue);
+        connect(qualSpin, qOverload<int>(&QSpinBox::valueChanged), qualSlider, &QSlider::setValue);
+        qualRow->addWidget(qualSlider);
+        qualRow->addWidget(qualSpin);
+        layout->addLayout(qualRow);
+
+        // Progressive
+        auto* progCheck = new QCheckBox(tr("Progressive"));
+        progCheck->setChecked(opts.jpegProgressive);
+        layout->addWidget(progCheck);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &settingsDlg, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &settingsDlg, &QDialog::reject);
+        layout->addWidget(buttons);
+
+        if (settingsDlg.exec() != QDialog::Accepted) return;
+        opts.jpegQuality = qualSpin->value();
+        opts.jpegProgressive = progCheck->isChecked();
+
+    } else if (ext == QStringLiteral("png")) {
+        QDialog settingsDlg(this);
+        settingsDlg.setWindowTitle(tr("PNG Export Settings"));
+        auto* layout = new QVBoxLayout(&settingsDlg);
+
+        auto* compLabel = new QLabel(tr("Compression:"));
+        layout->addWidget(compLabel);
+        auto* compRow = new QHBoxLayout;
+        auto* compSlider = new QSlider(Qt::Horizontal);
+        compSlider->setRange(0, 100);
+        compSlider->setValue(opts.pngCompression);
+        auto* compSpin = new QSpinBox;
+        compSpin->setRange(0, 100);
+        compSpin->setValue(opts.pngCompression);
+        connect(compSlider, &QSlider::valueChanged, compSpin, &QSpinBox::setValue);
+        connect(compSpin, qOverload<int>(&QSpinBox::valueChanged), compSlider, &QSlider::setValue);
+        compRow->addWidget(compSlider);
+        compRow->addWidget(compSpin);
+        layout->addLayout(compRow);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &settingsDlg, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &settingsDlg, &QDialog::reject);
+        layout->addWidget(buttons);
+
+        if (settingsDlg.exec() != QDialog::Accepted) return;
+        opts.pngCompression = compSpin->value();
+
+    } else if (ext == QStringLiteral("webp")) {
+        QDialog settingsDlg(this);
+        settingsDlg.setWindowTitle(tr("WebP Export Settings"));
+        auto* layout = new QVBoxLayout(&settingsDlg);
+
+        auto* qualLabel = new QLabel(tr("Quality:"));
+        layout->addWidget(qualLabel);
+        auto* qualRow = new QHBoxLayout;
+        auto* qualSlider = new QSlider(Qt::Horizontal);
+        qualSlider->setRange(0, 100);
+        qualSlider->setValue(opts.webpQuality);
+        auto* qualSpin = new QSpinBox;
+        qualSpin->setRange(0, 100);
+        qualSpin->setValue(opts.webpQuality);
+        connect(qualSlider, &QSlider::valueChanged, qualSpin, &QSpinBox::setValue);
+        connect(qualSpin, qOverload<int>(&QSpinBox::valueChanged), qualSlider, &QSlider::setValue);
+        qualRow->addWidget(qualSlider);
+        qualRow->addWidget(qualSpin);
+        layout->addLayout(qualRow);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &settingsDlg, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &settingsDlg, &QDialog::reject);
+        layout->addWidget(buttons);
+
+        if (settingsDlg.exec() != QDialog::Accepted) return;
+        opts.webpQuality = qualSpin->value();
+
+    } else if (ext == QStringLiteral("tif") || ext == QStringLiteral("tiff")) {
+        QDialog settingsDlg(this);
+        settingsDlg.setWindowTitle(tr("TIFF Export Settings"));
+        auto* layout = new QVBoxLayout(&settingsDlg);
+
+        auto* compLabel = new QLabel(tr("Compression:"));
+        layout->addWidget(compLabel);
+        auto* compCombo = new QComboBox;
+        compCombo->addItem(tr("None"), 0);
+        compCombo->addItem(tr("LZW"), 1);
+        compCombo->setCurrentIndex(opts.tiffCompression);
+        layout->addWidget(compCombo);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &settingsDlg, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &settingsDlg, &QDialog::reject);
+        layout->addWidget(buttons);
+
+        if (settingsDlg.exec() != QDialog::Accepted) return;
+        opts.tiffCompression = compCombo->currentData().toInt();
+    }
+    // BMP/GIF: no settings dialog, export directly
+
+    auto result = exportDocument(*doc, filePath, opts);
+    if (!result.success) {
+        QMessageBox::critical(this, tr("Export Failed"), result.errorMessage);
+        return;
+    }
+
+    statusBar()->showMessage(tr("Exported to %1").arg(QFileInfo(filePath).fileName()), 5000);
 }
 
 void MainWindow::onPrint() {

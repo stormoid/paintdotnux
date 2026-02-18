@@ -26,4 +26,18 @@ QString openFileFilter();
 /// Returns a file filter string for QFileDialog::getSaveFileName().
 QString saveFileFilter();
 
+/// Returns a file filter string for Export (flat formats only, no .pnx).
+QString exportFileFilter();
+
+struct ExportOptions {
+    int jpegQuality = 95;           // 0-100
+    bool jpegProgressive = false;
+    int pngCompression = 50;        // 0=none, 100=max
+    int webpQuality = 90;           // 0-100
+    int tiffCompression = 1;        // 0=None, 1=LZW
+};
+
+/// Export a document to a flat format with user-specified options.
+FileIOResult exportDocument(const Document& doc, const QString& filePath, const ExportOptions& opts);
+
 } // namespace paintnux

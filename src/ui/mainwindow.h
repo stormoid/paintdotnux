@@ -58,6 +58,7 @@ private:
     void onFileOpen();
     void onFileSave();
     void onFileSaveAs();
+    void onFileExport();
     void onFileClose();
     void onUndo();
     void onRedo();
