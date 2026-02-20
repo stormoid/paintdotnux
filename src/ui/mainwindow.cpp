@@ -2713,14 +2713,24 @@ static void applyRotateZoom(const Surface& src, Surface& dst,
 }
 
 void MainWindow::onRotateZoom() {
-    commitFloatingOverlayForSave();
-    auto* doc = m_workspace->document();
-    if (!doc) return;
-    int idx = m_workspace->activeLayerIndex();
-    auto* layer = dynamic_cast<BitmapLayer*>(doc->layerAt(idx));
-    if (!layer) return;
+    // Determine whether we're operating on the floating overlay or the layer
+    const bool onOverlay = (m_workspace->overlaySurface() != nullptr);
 
-    Surface original = layer->surface().clone();
+    BitmapLayer* layer = nullptr;
+    int idx = 0;
+
+    if (!onOverlay) {
+        auto* doc = m_workspace->document();
+        if (!doc) return;
+        idx = m_workspace->activeLayerIndex();
+        layer = dynamic_cast<BitmapLayer*>(doc->layerAt(idx));
+        if (!layer) return;
+    }
+
+    Surface original = onOverlay
+        ? m_workspace->overlaySurface()->clone()
+        : layer->surface().clone();
+    Surface overlayWork = original.clone();
 
     QDialog dlg(this);
     dlg.setWindowTitle(tr("Rotate / Zoom"));
@@ -2798,11 +2808,22 @@ void MainWindow::onRotateZoom() {
     previewTimer->setSingleShot(true);
     previewTimer->setInterval(30);
     connect(previewTimer, &QTimer::timeout, &dlg, [&]() {
-        applyRotateZoom(original, layer->surface(),
-                        angleSpin->value(), zoomSpin->value(),
-                        panXSpin->value(), panYSpin->value(),
-                        tileCheck->isChecked(), keepBgCheck->isChecked());
-        m_workspace->invalidateAll();
+        if (onOverlay) {
+            applyRotateZoom(original, overlayWork,
+                            angleSpin->value(), zoomSpin->value(),
+                            panXSpin->value(), panYSpin->value(),
+                            tileCheck->isChecked(), keepBgCheck->isChecked());
+            // Replace overlay with transformed version for preview
+            QPoint offset = m_workspace->overlayOffset();
+            auto previewSurf = std::make_unique<Surface>(overlayWork.clone());
+            m_workspace->setOverlay(std::move(previewSurf), offset);
+        } else {
+            applyRotateZoom(original, layer->surface(),
+                            angleSpin->value(), zoomSpin->value(),
+                            panXSpin->value(), panYSpin->value(),
+                            tileCheck->isChecked(), keepBgCheck->isChecked());
+            m_workspace->invalidateAll();
+        }
     });
     auto startPreview = [previewTimer]() { previewTimer->start(); };
     connect(angleSpin, &QDoubleSpinBox::valueChanged, &dlg, startPreview);
@@ -2818,14 +2839,26 @@ void MainWindow::onRotateZoom() {
     connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
 
     if (dlg.exec() != QDialog::Accepted) {
-        layer->surface().copySurface(original);
-        m_workspace->invalidateAll();
+        if (onOverlay) {
+            // Restore original overlay
+            QPoint offset = m_workspace->overlayOffset();
+            m_workspace->setOverlay(std::make_unique<Surface>(std::move(original)), offset);
+        } else {
+            layer->surface().copySurface(original);
+            m_workspace->invalidateAll();
+        }
         return;
     }
 
-    auto memento = std::make_unique<BitmapHistoryMemento>(
-        tr("Rotate / Zoom"), doc, idx, QRegion(layer->surface().bounds()), std::move(original));
-    m_workspace->historyStack()->pushNewMemento(std::move(memento));
+    if (onOverlay) {
+        // Overlay already has the transformed surface from preview — nothing more to do.
+        // No history entry: undo of the paste itself will remove the whole overlay.
+    } else {
+        auto* doc = m_workspace->document();
+        auto memento = std::make_unique<BitmapHistoryMemento>(
+            tr("Rotate / Zoom"), doc, idx, QRegion(layer->surface().bounds()), std::move(original));
+        m_workspace->historyStack()->pushNewMemento(std::move(memento));
+    }
 }
 
 void MainWindow::onLayerFlipHorizontal() {
