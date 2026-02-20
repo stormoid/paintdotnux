@@ -2315,6 +2315,7 @@ void MainWindow::onCopy() {
 }
 
 void MainWindow::onCut() {
+    commitFloatingOverlayForSave();
     auto* sel = m_workspace->selection();
     auto* layer = dynamic_cast<BitmapLayer*>(
         m_workspace->document()->layerAt(m_workspace->activeLayerIndex()));
@@ -2408,6 +2409,7 @@ void MainWindow::onDelete() {
 }
 
 void MainWindow::onFillSelection() {
+    commitFloatingOverlayForSave();
     auto* sel = m_workspace->selection();
     auto* layer = dynamic_cast<BitmapLayer*>(
         m_workspace->document()->layerAt(m_workspace->activeLayerIndex()));
@@ -2711,6 +2713,7 @@ static void applyRotateZoom(const Surface& src, Surface& dst,
 }
 
 void MainWindow::onRotateZoom() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -2826,6 +2829,7 @@ void MainWindow::onRotateZoom() {
 }
 
 void MainWindow::onLayerFlipHorizontal() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -2843,6 +2847,7 @@ void MainWindow::onLayerFlipHorizontal() {
 }
 
 void MainWindow::onLayerFlipVertical() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -2860,6 +2865,7 @@ void MainWindow::onLayerFlipVertical() {
 }
 
 void MainWindow::onRemapChannel(int srcChannel, int dstChannel, bool transfer) {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -2897,6 +2903,7 @@ void MainWindow::onRemapChannel(int srcChannel, int dstChannel, bool transfer) {
 // --- Image menu actions ---
 
 void MainWindow::onResize() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
 
@@ -3038,6 +3045,7 @@ void MainWindow::onResize() {
 }
 
 void MainWindow::onCanvasSize() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
 
@@ -3156,6 +3164,7 @@ void MainWindow::onCanvasSize() {
 }
 
 void MainWindow::onCropToSelection() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     auto* sel = m_workspace->selection();
     if (!doc || !sel || sel->isEmpty()) return;
@@ -3191,6 +3200,7 @@ void MainWindow::onCropToSelection() {
 }
 
 void MainWindow::onFlipHorizontal() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
 
@@ -3209,6 +3219,7 @@ void MainWindow::onFlipHorizontal() {
 }
 
 void MainWindow::onFlipVertical() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
 
@@ -3226,6 +3237,7 @@ void MainWindow::onFlipVertical() {
 }
 
 void MainWindow::onRotate90CW() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
 
@@ -3260,6 +3272,7 @@ void MainWindow::onRotate90CW() {
 }
 
 void MainWindow::onRotate90CCW() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
 
@@ -3294,6 +3307,7 @@ void MainWindow::onRotate90CCW() {
 }
 
 void MainWindow::onRotate180() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
 
@@ -3325,6 +3339,7 @@ void MainWindow::onRotate180() {
 }
 
 void MainWindow::onFlattenImage() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc || doc->layerCount() <= 1) return;
 
@@ -3348,6 +3363,7 @@ void MainWindow::onFlattenImage() {
 // --- Adjustments menu actions ---
 
 void MainWindow::onInvertColors() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3362,6 +3378,7 @@ void MainWindow::onInvertColors() {
 }
 
 void MainWindow::onGrayscale() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3376,6 +3393,7 @@ void MainWindow::onGrayscale() {
 }
 
 void MainWindow::onSepia() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3390,6 +3408,7 @@ void MainWindow::onSepia() {
 }
 
 void MainWindow::onAutoLevel() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3404,6 +3423,7 @@ void MainWindow::onAutoLevel() {
 }
 
 void MainWindow::onBrightnessContrast() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3466,6 +3486,7 @@ void MainWindow::onBrightnessContrast() {
 }
 
 void MainWindow::onHueSaturation() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3543,6 +3564,7 @@ void MainWindow::onHueSaturation() {
 }
 
 void MainWindow::onPosterize() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3644,6 +3666,7 @@ void MainWindow::onPosterize() {
 }
 
 void MainWindow::onLevels() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3778,6 +3801,7 @@ void MainWindow::onLevels() {
 // ============================================================
 
 void MainWindow::onGaussianBlur() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3830,6 +3854,7 @@ void MainWindow::onGaussianBlur() {
 }
 
 void MainWindow::onMotionBlur() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3897,6 +3922,7 @@ void MainWindow::onMotionBlur() {
 }
 
 void MainWindow::onUnfocus() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -3949,6 +3975,7 @@ void MainWindow::onUnfocus() {
 }
 
 void MainWindow::onAddNoise() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4030,6 +4057,7 @@ void MainWindow::onAddNoise() {
 }
 
 void MainWindow::onMedian() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4097,6 +4125,7 @@ void MainWindow::onMedian() {
 }
 
 void MainWindow::onPixelate() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4149,6 +4178,7 @@ void MainWindow::onPixelate() {
 }
 
 void MainWindow::onEdgeDetect() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4201,6 +4231,7 @@ void MainWindow::onEdgeDetect() {
 }
 
 void MainWindow::onEmboss() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4253,6 +4284,7 @@ void MainWindow::onEmboss() {
 }
 
 void MainWindow::onRelief() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4305,6 +4337,7 @@ void MainWindow::onRelief() {
 }
 
 void MainWindow::onOutline() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4372,6 +4405,7 @@ void MainWindow::onOutline() {
 }
 
 void MainWindow::onGlow() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4453,6 +4487,7 @@ void MainWindow::onGlow() {
 }
 
 void MainWindow::onSharpen() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4505,6 +4540,7 @@ void MainWindow::onSharpen() {
 }
 
 void MainWindow::onOilPainting() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4572,6 +4608,7 @@ void MainWindow::onOilPainting() {
 }
 
 void MainWindow::onPencilSketch() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
@@ -4639,6 +4676,7 @@ void MainWindow::onPencilSketch() {
 }
 
 void MainWindow::onInkSketch() {
+    commitFloatingOverlayForSave();
     auto* doc = m_workspace->document();
     if (!doc) return;
     int idx = m_workspace->activeLayerIndex();
