@@ -641,7 +641,7 @@ void MainWindow::createMenus() {
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
     helpMenu->addAction(tr("&About Paint.nux"), [this]() {
         QMessageBox::about(this, tr("About Paint.nux"),
-            tr("<h3>Paint.nux 0.1.0</h3>"
+            tr("<h3>Paint.nux 0.2.0</h3>"
                "<p>A reimplementation of Paint.NET 3.36, built with C++20 and Qt6.</p>"));
     });
 }
