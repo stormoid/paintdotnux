@@ -221,25 +221,32 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 void MainWindow::createTools() {
-    // Paint.NET tool order (paired columns in 2-wide grid)
-    m_tools.push_back(std::make_unique<RectangleSelectTool>(m_workspace));  // 0
-    m_tools.push_back(std::make_unique<MoveTool>(m_workspace));             // 1
-    m_tools.push_back(std::make_unique<LassoSelectTool>(m_workspace));      // 2
-    m_tools.push_back(std::make_unique<MoveSelectionTool>(m_workspace));    // 3
-    m_tools.push_back(std::make_unique<EllipseSelectTool>(m_workspace));    // 4
-    m_tools.push_back(std::make_unique<ZoomTool>(m_workspace));             // 5
-    m_tools.push_back(std::make_unique<MagicWandTool>(m_workspace));        // 6
-    m_tools.push_back(std::make_unique<PanTool>(m_workspace));              // 7
-    m_tools.push_back(std::make_unique<PaintBucketTool>(m_workspace));      // 8
-    m_tools.push_back(std::make_unique<GradientTool>(m_workspace));         // 9
-    m_tools.push_back(std::make_unique<PaintBrushTool>(m_workspace));       // 10
+    // 3-column grid, grouped by function
+    // Row 1: Area selection
+    m_tools.push_back(std::make_unique<RectangleSelectTool>(m_workspace));  //  0
+    m_tools.push_back(std::make_unique<EllipseSelectTool>(m_workspace));    //  1
+    m_tools.push_back(std::make_unique<LassoSelectTool>(m_workspace));      //  2
+    // Row 2: Point selection + move
+    m_tools.push_back(std::make_unique<MagicWandTool>(m_workspace));        //  3
+    m_tools.push_back(std::make_unique<MoveTool>(m_workspace));             //  4
+    m_tools.push_back(std::make_unique<MoveSelectionTool>(m_workspace));    //  5
+    // Row 3: Navigation + sample
+    m_tools.push_back(std::make_unique<ZoomTool>(m_workspace));             //  6
+    m_tools.push_back(std::make_unique<PanTool>(m_workspace));              //  7
+    m_tools.push_back(std::make_unique<ColorPickerTool>(m_workspace));      //  8
+    // Row 4: Freehand drawing
+    m_tools.push_back(std::make_unique<PaintBrushTool>(m_workspace));       //  9
+    m_tools.push_back(std::make_unique<PencilTool>(m_workspace));           // 10
     m_tools.push_back(std::make_unique<EraserTool>(m_workspace));           // 11
-    m_tools.push_back(std::make_unique<PencilTool>(m_workspace));           // 12
-    m_tools.push_back(std::make_unique<ColorPickerTool>(m_workspace));      // 13
+    // Row 5: Fill + stamp
+    m_tools.push_back(std::make_unique<PaintBucketTool>(m_workspace));      // 12
+    m_tools.push_back(std::make_unique<GradientTool>(m_workspace));         // 13
     m_tools.push_back(std::make_unique<CloneStampTool>(m_workspace));       // 14
+    // Row 6: Special drawing
     m_tools.push_back(std::make_unique<RecolorTool>(m_workspace));          // 15
     m_tools.push_back(std::make_unique<TextTool>(m_workspace));             // 16
     m_tools.push_back(std::make_unique<LineTool>(m_workspace));             // 17
+    // Row 7-8: Shapes
     m_tools.push_back(std::make_unique<RectangleTool>(m_workspace));        // 18
     m_tools.push_back(std::make_unique<RoundedRectangleTool>(m_workspace)); // 19
     m_tools.push_back(std::make_unique<EllipseTool>(m_workspace));          // 20
@@ -724,24 +731,31 @@ void MainWindow::createDocks() {
     // Unicode symbols as temporary icons
     struct ToolEntry { QString icon; char shortcut; };
     const ToolEntry entries[] = {
+        // Row 1: Area selection
         {QStringLiteral("\u2B1A"),     's'},  //  0 rect select
-        {QStringLiteral("\u271C"),     'm'},  //  1 move pixels
+        {QStringLiteral("\u25CC"),     's'},  //  1 ellipse select
         {QStringLiteral("\u27B0"),     's'},  //  2 lasso select
-        {QStringLiteral("\u26F6"),     'm'},  //  3 move selection
-        {QStringLiteral("\u25CC"),     's'},  //  4 ellipse select
-        {QStringLiteral("\U0001F50D"), 'z'},  //  5 zoom
-        {QStringLiteral("\u2728"),     's'},  //  6 magic wand
+        // Row 2: Point selection + move
+        {QStringLiteral("\u2728"),     's'},  //  3 magic wand
+        {QStringLiteral("\u271C"),     'm'},  //  4 move pixels
+        {QStringLiteral("\u26F6"),     'm'},  //  5 move selection
+        // Row 3: Navigation + sample
+        {QStringLiteral("\U0001F50D"), 'z'},  //  6 zoom
         {QStringLiteral("\u270B"),     'h'},  //  7 pan
-        {QStringLiteral("\U0001FAA3"), 'f'},  //  8 paint bucket
-        {QStringLiteral("\u25E7"),     'g'},  //  9 gradient
-        {QStringLiteral("\U0001F58C"), 'b'},  // 10 paintbrush
+        {QStringLiteral("\U0001F4A7"), 'k'},  //  8 color picker
+        // Row 4: Freehand drawing
+        {QStringLiteral("\U0001F58C"), 'b'},  //  9 paintbrush
+        {QStringLiteral("\u270F"),     'p'},  // 10 pencil
         {QStringLiteral("\u232B"),     'e'},  // 11 eraser
-        {QStringLiteral("\u270F"),     'p'},  // 12 pencil
-        {QStringLiteral("\U0001F4A7"), 'k'},  // 13 color picker
+        // Row 5: Fill + stamp
+        {QStringLiteral("\U0001FAA3"), 'f'},  // 12 paint bucket
+        {QStringLiteral("\u25E7"),     'g'},  // 13 gradient
         {QStringLiteral("\u29C9"),     'l'},  // 14 clone stamp
+        // Row 6: Special drawing
         {QStringLiteral("\U0001F504"), 'r'},  // 15 recolor
         {QStringLiteral("\U0001D54B"), 't'},  // 16 text
         {QStringLiteral("\u2312"),     'o'},  // 17 line / curve
+        // Row 7-8: Shapes
         {QStringLiteral("\u25A1"),     'o'},  // 18 rectangle
         {QStringLiteral("\u25A2"),     'o'},  // 19 rounded rectangle
         {QStringLiteral("\u2B2D"),     'o'},  // 20 ellipse shape
