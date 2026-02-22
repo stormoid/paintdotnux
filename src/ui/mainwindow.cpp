@@ -885,6 +885,10 @@ void MainWindow::updateRecentFilesMenu() {
     });
 }
 
+void MainWindow::openFile(const QString& filePath) {
+    openRecentFile(filePath);
+}
+
 void MainWindow::openRecentFile(const QString& filePath) {
     if (!QFileInfo::exists(filePath)) {
         QMessageBox::warning(this, tr("File Not Found"),
@@ -1774,7 +1778,8 @@ void MainWindow::onFileSaveAs() {
     QFileDialog dlg(this, tr("Save As"), m_currentFilePath, saveFileFilter());
     dlg.setAcceptMode(QFileDialog::AcceptSave);
     dlg.setOption(QFileDialog::DontUseNativeDialog);
-    dlg.setDefaultSuffix(QStringLiteral("pnx"));
+    dlg.setDefaultSuffix(QStringLiteral("png"));
+    dlg.selectNameFilter(QStringLiteral("PNG (*.png)"));
 
     // Update default suffix when the user switches filter
     connect(&dlg, &QFileDialog::filterSelected, &dlg, [&dlg](const QString& filter) {
@@ -2586,15 +2591,19 @@ void MainWindow::onPaste() {
     }
 
     // Restore the original selection shape, translated to match the paste offset
+    // Clip to canvas bounds so marching ants never extend beyond the document
+    QPainterPath canvasClip;
+    canvasClip.addRect(QRect(0, 0, doc->width(), doc->height()));
+
     if (m_copySelectionPath.isEmpty()) {
         QPainterPath pastePath;
         pastePath.addRect(QRect(offsetX, offsetY, overlay->width(), overlay->height()));
-        sel->setPath(pastePath);
+        sel->setPath(pastePath.intersected(canvasClip));
     } else {
         // Translate the saved path from original coords to the new paste offset
         int dx = offsetX - m_copyOrigin.x();
         int dy = offsetY - m_copyOrigin.y();
-        sel->setPath(m_copySelectionPath.translated(dx, dy));
+        sel->setPath(m_copySelectionPath.translated(dx, dy).intersected(canvasClip));
     }
 
     // Set the overlay — user can move it before committing

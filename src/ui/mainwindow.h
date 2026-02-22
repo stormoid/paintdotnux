@@ -32,6 +32,7 @@ public:
     ~MainWindow() override = default;
 
     [[nodiscard]] DocumentWorkspace* workspace() const { return m_workspace; }
+    void openFile(const QString& filePath);
 
 protected:
     void closeEvent(QCloseEvent* event) override;

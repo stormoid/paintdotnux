@@ -1,6 +1,7 @@
 #include "tools/selecttools.h"
 #include "ui/documentworkspace.h"
 #include "history/selectionhistorymemento.h"
+#include "data/document.h"
 
 #include <QTransform>
 #include <cmath>
@@ -235,8 +236,11 @@ void SelectionToolBase::mouseUp(QPointF docPos, Qt::MouseButton button, Qt::Keyb
         return;
     }
 
-    // Commit the continuation
+    // Commit the continuation, then clip to canvas bounds
     sel->commitContinuation();
+    QPainterPath canvasClip;
+    canvasClip.addRect(QRect(0, 0, document()->width(), document()->height()));
+    sel->setPath(sel->path().intersected(canvasClip));
 
     // Push undo memento
     auto memento = std::make_unique<SelectionHistoryMemento>(
@@ -374,6 +378,9 @@ void LassoSelectTool::mouseUp(QPointF docPos, Qt::MouseButton button, Qt::Keyboa
     }
 
     sel->commitContinuation();
+    QPainterPath canvasClipL;
+    canvasClipL.addRect(QRect(0, 0, document()->width(), document()->height()));
+    sel->setPath(sel->path().intersected(canvasClipL));
 
     auto memento = std::make_unique<SelectionHistoryMemento>(
         name(), sel, m_savedPath);
