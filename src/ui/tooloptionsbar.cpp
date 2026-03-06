@@ -258,7 +258,7 @@ ToolOptionsBar::ToolOptionsBar(QWidget* parent)
     m_pickerBehavior->addItem(tr("Do not switch"));
     m_pickerBehavior->addItem(tr("Switch to previous tool"));
     m_pickerBehavior->addItem(tr("Switch to Pencil"));
-    m_pickerBehavior->setCurrentIndex(1);
+    m_pickerBehavior->setCurrentIndex(0);
     connect(m_pickerBehavior, &QComboBox::currentIndexChanged, this, &ToolOptionsBar::settingsChanged);
     m_pickerBehaviorActions.push_back(addWidget(new QLabel(tr(" After sampling: "))));
     m_pickerBehaviorActions.push_back(addWidget(m_pickerBehavior));
