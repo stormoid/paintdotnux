@@ -44,6 +44,8 @@
 #include <QPrintPreviewDialog>
 #include <QSettings>
 #include <QSlider>
+#include <QAbstractSpinBox>
+#include <QLineEdit>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
 #include <QStatusBar>
@@ -218,6 +220,9 @@ MainWindow::MainWindow(QWidget* parent)
     createCentralArea();
     restoreSettings();
     createTestDocument();
+
+    // App-wide event filter so tool shortcuts work regardless of focus
+    qApp->installEventFilter(this);
 }
 
 void MainWindow::createTools() {
@@ -1477,25 +1482,6 @@ void MainWindow::importFromImage(const QImage& image, const QString& name) {
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
-    // Only handle bare letter keys (no Ctrl/Alt/Meta modifiers)
-    if (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) {
-        QMainWindow::keyPressEvent(event);
-        return;
-    }
-
-    // Don't intercept if a text input widget has focus
-    auto* focused = focusWidget();
-    if (qobject_cast<QLineEdit*>(focused) || qobject_cast<QSpinBox*>(focused)) {
-        QMainWindow::keyPressEvent(event);
-        return;
-    }
-
-    QString text = event->text().toLower();
-    if (text.length() == 1 && text[0].isLetter()) {
-        if (m_toolsDock->activateShortcut(text[0].toLatin1()))
-            return;
-    }
-
     QMainWindow::keyPressEvent(event);
 }
 
@@ -1511,6 +1497,26 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         }
         return true;
     }
+
+    // Application-wide tool shortcut handling (bare letter keys)
+    if (event->type() == QEvent::KeyPress) {
+        auto* ke = static_cast<QKeyEvent*>(event);
+        // Only bare letters (no Ctrl/Alt/Meta)
+        if (!(ke->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+            // Skip if a text-accepting widget has focus
+            auto* focused = QApplication::focusWidget();
+            if (!qobject_cast<QLineEdit*>(focused)
+                && !qobject_cast<QAbstractSpinBox*>(focused)
+                && !qobject_cast<QComboBox*>(focused)) {
+                QString text = ke->text().toLower();
+                if (text.length() == 1 && text[0].isLetter()) {
+                    if (m_toolsDock->activateShortcut(text[0].toLatin1()))
+                        return true;
+                }
+            }
+        }
+    }
+
     return QMainWindow::eventFilter(obj, event);
 }
 
@@ -2474,10 +2480,11 @@ void MainWindow::onPaste() {
         msgBox.setWindowTitle(tr("Paste"));
         msgBox.setText(tr("The image being pasted is larger than the canvas size.\n"
                           "What do you want to do?"));
-        auto* expandBtn = msgBox.addButton(tr("Expand canvas"), QMessageBox::YesRole);
-        msgBox.addButton(tr("Keep canvas size"), QMessageBox::NoRole);
-        auto* cancelBtn = msgBox.addButton(QMessageBox::Cancel);
+        auto* expandBtn = msgBox.addButton(tr("Expand canvas"), QMessageBox::AcceptRole);
+        auto* keepBtn = msgBox.addButton(tr("Keep canvas size"), QMessageBox::AcceptRole);
+        auto* cancelBtn = msgBox.addButton(tr("Cancel"), QMessageBox::RejectRole);
         msgBox.setDefaultButton(expandBtn);
+        msgBox.setEscapeButton(cancelBtn);
         msgBox.exec();
 
         if (msgBox.clickedButton() == cancelBtn)
