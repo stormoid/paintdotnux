@@ -1,6 +1,6 @@
 # Paint.nux
 
-A native Linux raster image editor inspired by Paint.NET, built with C++20 and Qt6.
+A native raster image editor inspired by Paint.NET, built with C++20 and Qt6.
 
 This project was written entirely by LLM (Claude) with human supervision, and will continue to be maintained by said LLM. It serves as a test and demonstration of current AI coding capabilities with limited human involvement.
 
@@ -12,10 +12,15 @@ This project was written entirely by LLM (Claude) with human supervision, and wi
 
 - **C++20** compiler (GCC 12+ or Clang 15+)
 - **CMake** 3.20+
-- **Qt6** — Core, Gui, Widgets, Concurrent, PrintSupport modules
+- **Qt6** — Core, Gui, Widgets, Concurrent, PrintSupport, Network modules
 - **GoogleTest** *(optional, for tests only)* — fetched automatically via CMake FetchContent when `-DBUILD_TESTING=ON`
 
 ### Installing dependencies
+
+**macOS (Homebrew):**
+```bash
+brew install cmake qt
+```
 
 **Ubuntu / Debian:**
 ```bash
@@ -36,13 +41,13 @@ sudo pacman -S base-devel cmake qt6-base
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j$(nproc)
+cmake --build build --parallel
 ```
 
 For a release build:
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
+cmake --build build --parallel
 ```
 
 ## Running
@@ -57,7 +62,7 @@ Tests are optional and not built by default. To build with tests:
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
-cmake --build build -j$(nproc)
+cmake --build build --parallel
 ```
 
 Run the fast test suite (~70 tests, runs in ~1 second):
