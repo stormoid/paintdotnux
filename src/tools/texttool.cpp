@@ -72,6 +72,7 @@ void TextTool::renderText() {
     }
     if (!hasText && m_lines.size() <= 1) {
         invalidateCanvas();
+        emit editingChanged(true);
         return;
     }
 
@@ -109,6 +110,7 @@ void TextTool::renderText() {
 
     painter.end();
     invalidateCanvas();
+    emit editingChanged(true);
 }
 
 void TextTool::commitText() {

@@ -1503,11 +1503,13 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         auto* ke = static_cast<QKeyEvent*>(event);
         // Only bare letters (no Ctrl/Alt/Meta)
         if (!(ke->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
-            // Skip if a text-accepting widget has focus
+            // Skip if a text-accepting widget has focus or the text tool is editing
             auto* focused = QApplication::focusWidget();
+            auto* tt = dynamic_cast<TextTool*>(m_workspace->activeTool());
             if (!qobject_cast<QLineEdit*>(focused)
                 && !qobject_cast<QAbstractSpinBox*>(focused)
-                && !qobject_cast<QComboBox*>(focused)) {
+                && !qobject_cast<QComboBox*>(focused)
+                && !(tt && tt->isEditing())) {
                 QString text = ke->text().toLower();
                 if (text.length() == 1 && text[0].isLetter()) {
                     if (m_toolsDock->activateShortcut(text[0].toLatin1()))
