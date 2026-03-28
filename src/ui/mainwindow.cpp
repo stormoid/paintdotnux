@@ -2371,6 +2371,15 @@ void MainWindow::onCut() {
 }
 
 void MainWindow::onDelete() {
+    // If the text tool is editing, let Delete go to it instead
+    auto* textTool = dynamic_cast<TextTool*>(m_workspace->activeTool());
+    if (textTool && textTool->isEditing()) {
+        QKeyEvent delEvent(QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier);
+        textTool->keyDown(&delEvent);
+        m_workspace->canvas()->update();
+        return;
+    }
+
     // If there's a floating overlay (active paste), discard it
     if (m_workspace->overlaySurface()) {
         auto* sel = m_workspace->selection();
@@ -2434,6 +2443,15 @@ void MainWindow::onDelete() {
 }
 
 void MainWindow::onFillSelection() {
+    // If the text tool is editing, let Backspace go to it instead
+    auto* textTool = dynamic_cast<TextTool*>(m_workspace->activeTool());
+    if (textTool && textTool->isEditing()) {
+        QKeyEvent bsEvent(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+        textTool->keyDown(&bsEvent);
+        m_workspace->canvas()->update();
+        return;
+    }
+
     commitFloatingOverlayForSave();
     auto* sel = m_workspace->selection();
     auto* layer = dynamic_cast<BitmapLayer*>(

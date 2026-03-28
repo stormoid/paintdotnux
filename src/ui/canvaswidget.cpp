@@ -771,7 +771,7 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
 }
 
 void CanvasWidget::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+    if (event->key() == Qt::Key_Space && !event->isAutoRepeat() && !m_textCursorVisible) {
         setSpacebarHeld(true);
         event->accept();
         return;
@@ -802,7 +802,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
 }
 
 void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+    if (event->key() == Qt::Key_Space && !event->isAutoRepeat() && !m_textCursorVisible) {
         setSpacebarHeld(false);
         event->accept();
         return;
